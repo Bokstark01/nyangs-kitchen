@@ -573,6 +573,7 @@ async function setupNative() {
       if (id && pt(id)) A.open(id);
     });
   }
+  await introDone;
   if (P.AdMob) {
     try {
       await P.AdMob.initialize({ initializeForTesting: true });
@@ -584,6 +585,15 @@ async function setupNative() {
     if (await ensureNotif()) for (const p of S.points) for (const t of p.times) if (t.alarm) await scheduleAlarm(p, t);
   }
 }
+
+/* ---------- intro ---------- */
+const introDone = new Promise(res => {
+  const el = $('#intro'); if (!el) return res();
+  let done = false;
+  const finish = () => { if (done) return; done = true; el.classList.add('hide'); setTimeout(() => { el.remove(); res(); }, 450); };
+  el.addEventListener('click', finish);
+  setTimeout(finish, 2200);
+});
 
 $('#bellBtn').innerHTML = I.bell;
 $('#setBtn').innerHTML = I.gear;

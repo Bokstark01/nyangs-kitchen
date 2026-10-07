@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="밥그릇 앞에서 웃는 고양이">
+  <g class="cat">
+    <path d="M58 98 L66 26 L114 66 Z" fill="#F4ECD6"/>
+    <path d="M182 98 L174 26 L126 66 Z" fill="#F4ECD6"/>
+    <path d="M70 84 L74 44 L101 66 Z" fill="#E9A58A"/>
+    <path d="M170 84 L166 44 L139 66 Z" fill="#E9A58A"/>
+    <ellipse cx="120" cy="112" rx="72" ry="62" fill="#F4ECD6"/>
+    <path d="M84 108 q13 -14 26 0" stroke="#1F4A36" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+    <path d="M130 108 q13 -14 26 0" stroke="#1F4A36" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+    <ellipse cx="82" cy="128" rx="11" ry="6.5" fill="#E9A58A" opacity=".75"/>
+    <ellipse cx="158" cy="128" rx="11" ry="6.5" fill="#E9A58A" opacity=".75"/>
+    <path d="M113 121 h14 l-7 8 z" fill="#D9826B" stroke="#D9826B" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M106 133 q7 9 14 0 q7 9 14 0" stroke="#1F4A36" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M66 120 l-26 -5 M66 128 l-26 3 M174 120 l26 -5 M174 128 l26 3" stroke="#C9BFA4" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+  <g class="bowl">
+    <circle cx="104" cy="160" r="6" fill="#8B5A2B"/><circle cx="117" cy="157" r="6.5" fill="#9C6A36"/>
+    <circle cx="131" cy="159" r="6" fill="#8B5A2B"/><circle cx="124" cy="152" r="5.5" fill="#A87440"/>
+    <path d="M46 176 h148 q-6 48 -74 48 q-68 0 -74 -48 z" fill="#E9C79A"/>
+    <path d="M60 196 h120" stroke="#D9B07E" stroke-width="5" stroke-linecap="round"/>
+    <rect x="36" y="162" width="168" height="18" rx="9" fill="#C2560F"/>
+    <ellipse cx="80" cy="164" rx="16" ry="11" fill="#F4ECD6"/>
+    <ellipse cx="160" cy="164" rx="16" ry="11" fill="#F4ECD6"/>
+    <path d="M74 160 v6 M80 159 v7 M86 160 v6 M154 160 v6 M160 159 v7 M166 160 v6" stroke="#C9BFA4" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>

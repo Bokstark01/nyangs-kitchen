@@ -144,3 +144,13 @@ button{cursor:pointer}
 .nk-icon.nk-pin > .kpin{position:absolute;transform:translate(-50%,-22px)}
 .leaflet-container{font-family:var(--body);background:var(--map)}
 .leaflet-control-attribution{font-size:10px}
+
+/* 인트로 */
+.intro{position:fixed;inset:0;z-index:100;background:#1F4A36;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:24px;transition:opacity .45s ease}
+.intro.hide{opacity:0;pointer-events:none}
+.intro-art{width:min(62vw,260px);height:auto;overflow:visible}
+.intro-art .cat{transform-origin:120px 170px;animation:nkBob 1.6s ease-in-out infinite}
+.intro-title{margin:10px 0 0;font-family:'Jua',var(--display);font-weight:400;font-size:44px;line-height:1.1;color:#F4ECD6;letter-spacing:.5px}
+.intro-sub{margin:4px 0 0;font-size:15px;color:#BFE3CF;font-family:var(--body)}
+@keyframes nkBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.brand,.h-display{font-family:'Jua',var(--display);font-weight:400}

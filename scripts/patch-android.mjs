@@ -51,6 +51,30 @@ for (const dpi of ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']) {
   for (const f of fs.readdirSync(src)) fs.copyFileSync(path.join(src, f), path.join(dst, f));
 }
 
+// 시작 화면: 진한 녹색 배경 + 가운데 고양이
+const splashGreen = '#1F4A36';
+fs.writeFileSync(path.join(res, 'values/nk_colors.xml'), `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="nk_splash">${splashGreen}</color>\n</resources>\n`);
+for (const d of fs.readdirSync(res)) {
+  const f = path.join(res, d, 'splash.png');
+  if (d.startsWith('drawable') && fs.existsSync(f)) fs.rmSync(f);
+}
+fs.mkdirSync(path.join(res, 'drawable-xxhdpi'), { recursive: true });
+fs.copyFileSync(path.join(root, 'resources/android/nk_splash_art.png'), path.join(res, 'drawable-xxhdpi/nk_splash_art.png'));
+fs.copyFileSync(path.join(root, 'resources/android/nk_splash_icon.png'), path.join(res, 'drawable-xxhdpi/nk_splash_icon.png'));
+fs.writeFileSync(path.join(res, 'drawable/splash.xml'), `<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/nk_splash" />
+    <item><bitmap android:gravity="center" android:src="@drawable/nk_splash_art" /></item>
+</layer-list>
+`);
+const stylesPath = path.join(res, 'values/styles.xml');
+let styles = fs.readFileSync(stylesPath, 'utf8');
+styles = styles.replace(/(<style name="AppTheme.NoActionBarLaunch"[^>]*>)/, `$1
+        <item name="windowSplashScreenBackground">@color/nk_splash</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/nk_splash_icon</item>
+        <item name="android:statusBarColor">@color/nk_splash</item>`);
+fs.writeFileSync(stylesPath, styles);
+
 // 고정 디버그 서명 키: 새 버전을 지우지 않고 덮어 설치할 수 있게
 const gradlePath = path.join(root, 'android/app/build.gradle');
 let gradle = fs.readFileSync(gradlePath, 'utf8');
