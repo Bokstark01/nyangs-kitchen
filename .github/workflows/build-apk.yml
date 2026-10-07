@@ -1,4 +1,14 @@
-name: APK 빌드
+name: APK·AAB 빌드
+
+# main에 올릴 때마다:
+#  - 테스트용 APK (고정 디버그 키 서명) → 휴대폰에 바로 설치
+#  - 출시용 AAB (업로드 키 서명) → 구글 플레이 콘솔에 업로드
+#    출시용 AAB는 저장소 Secret NK_RELEASE_PASSWORD 가 있을 때만 만들어진다.
+#
+# 선택 Secret:
+#  - KAKAO_JS_KEY      : 카카오 지도 JavaScript 키 (없으면 www/config.js 값 사용)
+#  - ADMOB_APP_ID      : AdMob 앱 ID (ca-app-pub-...~...). 없으면 구글 테스트 ID
+#  - ADMOB_BANNER_ID   : AdMob 배너 광고 단위 ID (ca-app-pub-.../...). 없으면 테스트 배너
 
 on:
   push:
@@ -12,64 +22,110 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      NK_VERSION_CODE: ${{ github.run_number }}
+      NK_RELEASE_STORE_PASSWORD: ${{ secrets.NK_RELEASE_PASSWORD }}
+      NK_RELEASE_KEY_PASSWORD: ${{ secrets.NK_RELEASE_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
 
       - name: 의존성 설치
+        shell: bash
         run: |
-          npm install --no-audit --no-fund
+          set -o pipefail
+          { npm install --no-audit --no-fund && npm ls --depth=0; } 2>&1 | tee -a build.log
           mkdir -p www/vendor
           cp node_modules/leaflet/dist/leaflet.js node_modules/leaflet/dist/leaflet.css www/vendor/
           cp -r node_modules/leaflet/dist/images www/vendor/images
           cp -r node_modules/@fontsource/jua www/vendor/jua
 
-      - name: 카카오 키 넣기 (저장소 Secret이 있을 때만)
+      - name: 앱 설정 넣기 (키·광고 ID·버전)
+        shell: bash
         env:
           KAKAO_JS_KEY: ${{ secrets.KAKAO_JS_KEY }}
+          ADMOB_BANNER_ID: ${{ secrets.ADMOB_BANNER_ID }}
         run: |
-          if [ -n "$KAKAO_JS_KEY" ]; then
-            echo "window.NK_CONFIG = { kakaoKey: '$KAKAO_JS_KEY' };" > www/config.js
+          VERSION=$(node -p "require('./package.json').version")
+          echo "NK_VERSION_NAME=$VERSION" >> "$GITHUB_ENV"
+          {
+            echo "window.NK_CONFIG = window.NK_CONFIG || {};"
+            echo "window.NK_CONFIG.version = '$VERSION (${NK_VERSION_CODE})';"
+            if [ -n "$KAKAO_JS_KEY" ]; then echo "window.NK_CONFIG.kakaoKey = '$KAKAO_JS_KEY';"; fi
+            if [ -n "$ADMOB_BANNER_ID" ]; then echo "window.NK_CONFIG.admobBannerId = '$ADMOB_BANNER_ID';"; fi
+          } >> www/config.js
+
+      - name: 업로드 키 풀기 (Secret이 있을 때만)
+        shell: bash
+        env:
+          NK_RELEASE_PASSWORD: ${{ secrets.NK_RELEASE_PASSWORD }}
+        run: |
+          if [ -n "$NK_RELEASE_PASSWORD" ]; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+              -in resources/android/upload.jks.enc -out "$RUNNER_TEMP/upload.jks" -pass env:NK_RELEASE_PASSWORD
+            {
+              echo "NK_RELEASE_KEYSTORE=$RUNNER_TEMP/upload.jks"
+              echo "NK_RELEASE_KEY_ALIAS=upload"
+            } >> "$GITHUB_ENV"
+            echo "::add-mask::$NK_RELEASE_PASSWORD"
+            echo "업로드 키 준비 완료"
+          else
+            echo "NK_RELEASE_PASSWORD Secret이 없어 출시용 AAB는 건너뜁니다."
           fi
 
       - name: 안드로이드 프로젝트 만들기
-        id: prep
         shell: bash
+        env:
+          ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
         run: |
           set -o pipefail
           { npx cap add android && node scripts/patch-android.mjs && npx cap sync android; } 2>&1 | tee -a build.log
 
-      - name: APK 빌드
+      - name: 테스트용 APK 빌드
         working-directory: android
+        shell: bash
         run: |
           chmod +x gradlew
           set -o pipefail
           ./gradlew assembleDebug --no-daemon 2>&1 | tee -a ../build.log
+          cp app/build/outputs/apk/debug/app-debug.apk ../nyangs-kitchen.apk
 
-      - name: 파일 이름 정리
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk nyangs-kitchen.apk
+      - name: 출시용 AAB 빌드
+        if: env.NK_RELEASE_KEYSTORE != ''
+        working-directory: android
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew bundleRelease --no-daemon 2>&1 | tee -a ../build.log
+          cp app/build/outputs/bundle/release/app-release.aab "../nyangs-kitchen-${NK_VERSION_NAME}-${NK_VERSION_CODE}.aab"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: nyangs-kitchen-apk
-          path: nyangs-kitchen.apk
+          name: nyangs-kitchen-${{ github.run_number }}
+          path: |
+            nyangs-kitchen.apk
+            nyangs-kitchen-*.aab
 
-      - name: 최신 APK 릴리스 갱신
+      - name: 최신 빌드 릴리스 갱신
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
+          FILES="nyangs-kitchen.apk"
+          AAB=$(ls nyangs-kitchen-*.aab 2>/dev/null || true)
+          [ -n "$AAB" ] && FILES="$FILES $AAB"
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest nyangs-kitchen.apk \
-            --title "냥's 키친 최신 테스트 빌드" \
-            --notes "빌드 번호 ${{ github.run_number }} · 커밋 ${GITHUB_SHA::7}. 휴대폰에서 nyangs-kitchen.apk를 받아 설치하세요."
+          gh release create latest $FILES \
+            --title "냥's 키친 ${NK_VERSION_NAME} (빌드 ${NK_VERSION_CODE})" \
+            --notes "커밋 ${GITHUB_SHA::7}. nyangs-kitchen.apk = 휴대폰 설치용 테스트 앱. ${AAB:-출시용 AAB 없음 (NK_RELEASE_PASSWORD Secret 필요)} = 플레이 콘솔 업로드용."
 
       - name: 실패 로그를 이슈로 남기기
         if: failure()
@@ -77,5 +133,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           touch build.log
-          { echo "빌드 ${{ github.run_number }} 실패 로그 (마지막 부분)"; echo '```'; grep -n -i -E "error|fail|exception|what went wrong" build.log | tail -n 60; echo '---'; tail -n 120 build.log; echo '```'; } > issue.md
+          { echo "빌드 ${{ github.run_number }} 실패 로그 (마지막 부분)"; echo '```'; grep -n -i -E "error|fail|exception|what went wrong|ERESOLVE|404" build.log | tail -n 60; echo '---'; tail -n 120 build.log; echo '```'; } > issue.md
           gh issue create --title "빌드 실패 #${{ github.run_number }}" --body-file issue.md

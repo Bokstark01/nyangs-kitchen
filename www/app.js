@@ -7,6 +7,11 @@ const isNative = !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform());
 const P = (Cap && Cap.Plugins) || {};
 const DEFAULT_CENTER = { lat: 37.5665, lng: 126.9780 }; // 위치를 못 받을 때: 서울시청
 const ADMOB_BANNER_TEST_ID = 'ca-app-pub-3940256099942544/6300978111';
+const CFG = window.NK_CONFIG || {};
+const ADMOB_BANNER_ID = CFG.admobBannerId || ADMOB_BANNER_TEST_ID;
+const ADMOB_TESTING = ADMOB_BANNER_ID === ADMOB_BANNER_TEST_ID;
+const PRIVACY_URL = 'https://bokstark01.github.io/nyangs-kitchen/privacy.html';
+const APP_VERSION = CFG.version || '1.0.0';
 const STORE_KEY = 'nyangs-kitchen-v1';
 
 /* ---------- icons ---------- */
@@ -432,7 +437,8 @@ function settingsSheet() {
     <button class="btn" data-act="saveKey2">키 저장</button>
     <button class="btn" data-act="testNotif">알림 테스트 (5초 뒤)</button>
     <button class="btn danger" data-act="resetAsk">모든 데이터 지우기</button>
-    <p class="small muted" style="margin:0">냥's 키친 0.1 · 데이터와 사진은 이 휴대폰에만 저장돼요.</p>`);
+    <a class="btn" href="${PRIVACY_URL}" target="_blank" rel="noopener">개인정보처리방침</a>
+    <p class="small muted" style="margin:0">냥's 키친 ${esc(APP_VERSION)} · 데이터와 사진은 이 휴대폰에만 저장돼요.</p>`);
 }
 
 /* ---------- actions ---------- */
@@ -576,8 +582,9 @@ async function setupNative() {
   await introDone;
   if (P.AdMob) {
     try {
-      await P.AdMob.initialize({ initializeForTesting: true });
-      await P.AdMob.showBanner({ adId: ADMOB_BANNER_TEST_ID, adSize: 'BANNER', position: 'BOTTOM_CENTER', margin: 0, isTesting: true });
+      await P.AdMob.initialize({ initializeForTesting: ADMOB_TESTING });
+      const inset = Math.round(($('#safeProbe') && $('#safeProbe').getBoundingClientRect().height) || 0);
+      await P.AdMob.showBanner({ adId: ADMOB_BANNER_ID, adSize: 'BANNER', position: 'BOTTOM_CENTER', margin: inset, isTesting: ADMOB_TESTING });
     } catch (e) { /* 광고가 안 떠도 앱은 동작 */ }
   }
   // 알람 다시 맞추기 (앱 업데이트·재설치 후에도 유지되도록)

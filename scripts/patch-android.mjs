@@ -7,21 +7,33 @@ const main = path.join(root, 'android/app/src/main');
 const manifestPath = path.join(main, 'AndroidManifest.xml');
 let manifest = fs.readFileSync(manifestPath, 'utf8');
 
+// 필요한 권한만 선언. 사진은 시스템 사진 선택기/카메라 앱을 쓰므로 저장소·카메라 권한이 필요 없다.
 const permissions = [
   'android.permission.INTERNET',
-  'android.permission.CAMERA',
   'android.permission.ACCESS_COARSE_LOCATION',
   'android.permission.ACCESS_FINE_LOCATION',
   'android.permission.POST_NOTIFICATIONS',
-  'android.permission.SCHEDULE_EXACT_ALARM',
-  'android.permission.RECEIVE_BOOT_COMPLETED',
-  'android.permission.READ_MEDIA_IMAGES'
+  'android.permission.RECEIVE_BOOT_COMPLETED'
 ];
+// 플러그인이 끼워 넣더라도 최종 앱에서 빠지게 할 권한 (Play 정책상 별도 심사가 필요한 권한들)
+const removed = [
+  'android.permission.SCHEDULE_EXACT_ALARM',
+  'android.permission.USE_EXACT_ALARM',
+  'android.permission.READ_MEDIA_IMAGES',
+  'android.permission.READ_MEDIA_VIDEO',
+  'android.permission.READ_EXTERNAL_STORAGE',
+  'android.permission.WRITE_EXTERNAL_STORAGE',
+  'android.permission.CAMERA'
+];
+if (!manifest.includes('xmlns:tools=')) {
+  manifest = manifest.replace(/<manifest\b/, '<manifest xmlns:tools="http://schemas.android.com/tools"');
+}
 const permXml = permissions
   .filter(p => !manifest.includes(`"${p}"`))
   .map(p => `    <uses-permission android:name="${p}" />`).join('\n');
+const removeXml = removed.map(p => `    <uses-permission android:name="${p}" tools:node="remove" />`).join('\n');
 const extra = `${permXml}
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+${removeXml}
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 `;
@@ -75,11 +87,23 @@ styles = styles.replace(/(<style name="AppTheme.NoActionBarLaunch"[^>]*>)/, `$1
         <item name="android:statusBarColor">@color/nk_splash</item>`);
 fs.writeFileSync(stylesPath, styles);
 
-// 고정 디버그 서명 키: 새 버전을 지우지 않고 덮어 설치할 수 있게
+// 서명과 버전
+//  - debug: 저장소에 있는 고정 디버그 키 (덮어 설치 테스트용)
+//  - release: 환경변수로 받은 업로드 키 (Play 업로드용). 키 파일은 저장소에 올리지 않는다.
 const gradlePath = path.join(root, 'android/app/build.gradle');
 let gradle = fs.readFileSync(gradlePath, 'utf8');
 fs.copyFileSync(path.join(root, 'resources/android/debug.keystore'), path.join(root, 'android/app/nyang-debug.keystore'));
-gradle = gradle.replace(/android\s*\{/, `android {
+const versionCode = parseInt(process.env.NK_VERSION_CODE || '1', 10);
+const versionName = process.env.NK_VERSION_NAME || JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+const rel = process.env.NK_RELEASE_KEYSTORE;
+gradle += `
+
+// ---- 냥's 키친: 서명·버전 (scripts/patch-android.mjs가 추가) ----
+android {
+    defaultConfig {
+        versionCode ${versionCode}
+        versionName "${versionName}"
+    }
     signingConfigs {
         debug {
             storeFile file('nyang-debug.keystore')
@@ -87,7 +111,20 @@ gradle = gradle.replace(/android\s*\{/, `android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
-    }`);
+${rel ? `        release {
+            storeFile file(System.getenv('NK_RELEASE_KEYSTORE'))
+            storePassword System.getenv('NK_RELEASE_STORE_PASSWORD')
+            keyAlias System.getenv('NK_RELEASE_KEY_ALIAS')
+            keyPassword System.getenv('NK_RELEASE_KEY_PASSWORD')
+        }` : ''}
+    }
+    buildTypes {
+        debug { signingConfig signingConfigs.debug }
+${rel ? '        release { signingConfig signingConfigs.release }' : ''}
+    }
+}
+`;
 fs.writeFileSync(gradlePath, gradle);
+console.log(`versionCode ${versionCode}, versionName ${versionName}, release signing: ${rel ? 'on' : 'off'}`);
 
 console.log('Android project patched.');
