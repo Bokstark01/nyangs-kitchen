@@ -107,6 +107,18 @@ jobs:
           ./gradlew bundleRelease --no-daemon 2>&1 | tee -a ../build.log
           cp app/build/outputs/bundle/release/app-release.aab "../nyangs-kitchen-${NK_VERSION_NAME}-${NK_VERSION_CODE}.aab"
 
+      - name: 출시 점검 보고서
+        shell: bash
+        run: |
+          AAPT2=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)aapt2
+          {
+            echo "== APK 기본 정보"; "$AAPT2" dump badging nyangs-kitchen.apk | grep -E "^package:|sdkVersion|targetSdkVersion|uses-permission|application-label:" || true
+            echo; echo "== APK 서명"; keytool -printcert -jarfile nyangs-kitchen.apk | grep -E "Owner|SHA1|SHA256" || true
+            AAB=$(ls nyangs-kitchen-*.aab 2>/dev/null || true)
+            if [ -n "$AAB" ]; then echo; echo "== AAB 서명 ($AAB)"; keytool -printcert -jarfile "$AAB" | grep -E "Owner|SHA1|SHA256" || true; fi
+          } > build-info.txt
+          cat build-info.txt
+
       - uses: actions/upload-artifact@v4
         with:
           name: nyangs-kitchen-${{ github.run_number }}
@@ -119,7 +131,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          FILES="nyangs-kitchen.apk"
+          FILES="nyangs-kitchen.apk build-info.txt"
           AAB=$(ls nyangs-kitchen-*.aab 2>/dev/null || true)
           [ -n "$AAB" ] && FILES="$FILES $AAB"
           gh release delete latest --yes --cleanup-tag || true
