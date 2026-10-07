@@ -25,7 +25,11 @@ jobs:
           java-version: 17
 
       - name: 의존성 설치
-        run: npm install --no-audit --no-fund
+        run: |
+          npm install --no-audit --no-fund
+          mkdir -p www/vendor
+          cp node_modules/leaflet/dist/leaflet.js node_modules/leaflet/dist/leaflet.css www/vendor/
+          cp -r node_modules/leaflet/dist/images www/vendor/images
 
       - name: 카카오 키 넣기 (저장소 Secret이 있을 때만)
         env:

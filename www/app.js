@@ -162,84 +162,131 @@ async function getPosition() {
   return null;
 }
 
-/* ---------- Kakao map ---------- */
-let kmap = null, kObjs = [], meOverlay = null, myPos = null, mapState = 'idle'; // idle | loading | ready | nokey | failed
-function loadKakao() {
+/* ---------- map: 카카오 키가 있으면 카카오맵, 없거나 실패하면 오픈 지도(Leaflet) ---------- */
+let kmap = null, engine = null, kObjs = [], meOverlay = null, myPos = null, mapState = 'idle'; // idle | loading | ready | failed
+function loadMap() {
   const key = kakaoKey();
-  if (!key) { mapState = 'nokey'; renderMapUi(); return; }
-  if (window.kakao && window.kakao.maps && window.kakao.maps.Map) { initMap(); return; }
+  if (key) loadKakao(key); else initLeaflet();
+}
+function loadKakao(key) {
+  if (window.kakao && window.kakao.maps && window.kakao.maps.Map) { initKakao(); return; }
   mapState = 'loading'; renderMapUi();
   const old = document.getElementById('kakaoSdk'); if (old) old.remove();
   const s = document.createElement('script');
   s.id = 'kakaoSdk';
   s.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&autoload=false`;
+  const fallback = () => { if (engine) return; mapState = 'idle'; toast('카카오 지도를 열지 못해 기본 지도로 열었어요'); initLeaflet(); };
   s.onload = () => {
-    if (!(window.kakao && window.kakao.maps && window.kakao.maps.load)) { mapState = 'failed'; renderMapUi(); return; }
-    window.kakao.maps.load(initMap);
+    if (!(window.kakao && window.kakao.maps && window.kakao.maps.load)) { fallback(); return; }
+    try { window.kakao.maps.load(initKakao); } catch (e) { fallback(); }
   };
-  s.onerror = () => { mapState = 'failed'; renderMapUi(); };
+  s.onerror = fallback;
   document.head.appendChild(s);
-  setTimeout(() => { if (mapState === 'loading') { mapState = 'failed'; renderMapUi(); } }, 12000);
+  setTimeout(() => { if (mapState === 'loading') fallback(); }, 10000);
 }
-function initMap() {
+function resetMapBox() { kObjs = []; meOverlay = null; const el = $('#kmap'); const fresh = el.cloneNode(false); el.replaceWith(fresh); }
+function onMapClick(lat, lng) {
+  if (!R.adding) { if (R.sel) { R.sel = null; syncOverlays(); renderMapUi(); } return; }
+  openAddSheet({ lat, lng });
+}
+function initKakao() {
+  if (engine === 'kakao') return;
+  if (kmap && engine === 'leaflet') { try { kmap.remove(); } catch (e) {} }
+  resetMapBox();
   const K = window.kakao.maps;
   const c = S.center || DEFAULT_CENTER;
   kmap = new K.Map($('#kmap'), { center: new K.LatLng(c.lat, c.lng), level: 3 });
-  K.event.addListener(kmap, 'click', e => {
-    if (!R.adding) { if (R.sel) { R.sel = null; syncOverlays(); renderMapUi(); } return; }
-    openAddSheet({ lat: e.latLng.getLat(), lng: e.latLng.getLng() });
-  });
+  engine = 'kakao';
+  K.event.addListener(kmap, 'click', e => onMapClick(e.latLng.getLat(), e.latLng.getLng()));
   K.event.addListener(kmap, 'idle', () => { const cc = kmap.getCenter(); S.center = { lat: cc.getLat(), lng: cc.getLng() }; save(); });
-  mapState = 'ready';
-  syncOverlays(); renderMapUi();
+  mapState = 'ready'; syncOverlays(); renderMapUi();
   if (!S.center) locate(true);
 }
+function initLeaflet() {
+  if (engine === 'leaflet') return;
+  if (!window.L) { mapState = 'failed'; renderMapUi(); return; }
+  resetMapBox();
+  const c = S.center || DEFAULT_CENTER;
+  kmap = L.map($('#kmap'), { zoomControl: false, attributionControl: true }).setView([c.lat, c.lng], 17);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd', maxZoom: 20, attribution: '© OpenStreetMap © CARTO'
+  }).addTo(kmap);
+  engine = 'leaflet';
+  kmap.on('click', e => onMapClick(e.latlng.lat, e.latlng.lng));
+  kmap.on('moveend', () => { const cc = kmap.getCenter(); S.center = { lat: cc.lat, lng: cc.lng }; save(); });
+  mapState = 'ready'; syncOverlays(); renderMapUi();
+  if (!S.center) locate(true);
+}
+function mapCenterTo(lat, lng) {
+  if (!kmap) return;
+  if (engine === 'kakao') kmap.setCenter(new window.kakao.maps.LatLng(lat, lng));
+  else kmap.setView([lat, lng], Math.max(kmap.getZoom(), 16));
+}
+function mapRelayout() { if (!kmap) return; if (engine === 'kakao') kmap.relayout(); else kmap.invalidateSize(); }
+function pinEl(p) {
+  const el = document.createElement('div');
+  el.className = 'kpin' + (R.sel === p.id ? ' sel' : '');
+  el.innerHTML = `<div class="b">${I.bowl}</div><div class="l">${esc(p.name)}</div>`;
+  return el;
+}
+function selectPin(id) { if (R.adding) return; R.sel = id; syncOverlays(); renderMapUi(); }
 function syncOverlays() {
   if (!kmap) return;
-  const K = window.kakao.maps;
-  kObjs.forEach(o => o.setMap(null)); kObjs = [];
-  if (S.filters.zone) S.zones.forEach(z => {
-    const pos = new K.LatLng(z.lat, z.lng);
-    kObjs.push(new K.Circle({ map: kmap, center: pos, radius: z.radius || 40, strokeWeight: 2, strokeColor: '#C2560F', strokeOpacity: 0.9, strokeStyle: 'dash', fillColor: '#C2560F', fillOpacity: 0.14 }));
-    const el = document.createElement('div'); el.className = 'kzone'; el.innerHTML = `${I.warn}${esc(z.label)}`;
-    el.addEventListener('click', ev => { ev.stopPropagation(); zoneSheet(z.id); });
-    kObjs.push(new K.CustomOverlay({ map: kmap, position: pos, content: el, yAnchor: 0.5, clickable: true }));
-  });
-  if (S.filters.mine) S.points.forEach(p => {
-    const el = document.createElement('div');
-    el.className = 'kpin' + (R.sel === p.id ? ' sel' : '');
-    el.innerHTML = `<div class="b">${I.bowl}</div><div class="l">${esc(p.name)}</div>`;
-    el.addEventListener('click', ev => { ev.stopPropagation(); if (R.adding) return; R.sel = p.id; syncOverlays(); renderMapUi(); });
-    kObjs.push(new K.CustomOverlay({ map: kmap, position: new K.LatLng(p.lat, p.lng), content: el, yAnchor: 0.35, clickable: true, zIndex: 3 }));
-  });
+  kObjs.forEach(o => engine === 'kakao' ? o.setMap(null) : o.remove()); kObjs = [];
+  if (engine === 'kakao') {
+    const K = window.kakao.maps;
+    if (S.filters.zone) S.zones.forEach(z => {
+      const pos = new K.LatLng(z.lat, z.lng);
+      kObjs.push(new K.Circle({ map: kmap, center: pos, radius: z.radius || 40, strokeWeight: 2, strokeColor: '#C2560F', strokeOpacity: 0.9, strokeStyle: 'dash', fillColor: '#C2560F', fillOpacity: 0.14 }));
+      const el = document.createElement('div'); el.className = 'kzone'; el.innerHTML = `${I.warn}${esc(z.label)}`;
+      el.addEventListener('click', ev => { ev.stopPropagation(); zoneSheet(z.id); });
+      kObjs.push(new K.CustomOverlay({ map: kmap, position: pos, content: el, yAnchor: 0.5, clickable: true }));
+    });
+    if (S.filters.mine) S.points.forEach(p => {
+      const el = pinEl(p);
+      el.addEventListener('click', ev => { ev.stopPropagation(); selectPin(p.id); });
+      kObjs.push(new K.CustomOverlay({ map: kmap, position: new K.LatLng(p.lat, p.lng), content: el, yAnchor: 0.35, clickable: true, zIndex: 3 }));
+    });
+  } else {
+    if (S.filters.zone) S.zones.forEach(z => {
+      kObjs.push(L.circle([z.lat, z.lng], { radius: z.radius || 40, color: '#C2560F', weight: 2, dashArray: '6 6', fillColor: '#C2560F', fillOpacity: 0.14, interactive: false }).addTo(kmap));
+      const icon = L.divIcon({ className: 'nk-icon', html: `<div class="kzone">${I.warn}${esc(z.label)}</div>`, iconSize: null });
+      kObjs.push(L.marker([z.lat, z.lng], { icon }).on('click', () => zoneSheet(z.id)).addTo(kmap));
+    });
+    if (S.filters.mine) S.points.forEach(p => {
+      const icon = L.divIcon({ className: 'nk-icon nk-pin', html: pinEl(p).outerHTML, iconSize: null });
+      kObjs.push(L.marker([p.lat, p.lng], { icon, zIndexOffset: 500 }).on('click', () => selectPin(p.id)).addTo(kmap));
+    });
+  }
   drawMe();
 }
 function drawMe() {
   if (!kmap || !myPos) return;
-  const K = window.kakao.maps;
-  if (meOverlay) meOverlay.setMap(null);
-  const el = document.createElement('div'); el.className = 'kme';
-  meOverlay = new K.CustomOverlay({ map: kmap, position: new K.LatLng(myPos.lat, myPos.lng), content: el, zIndex: 2 });
+  if (meOverlay) { engine === 'kakao' ? meOverlay.setMap(null) : meOverlay.remove(); }
+  if (engine === 'kakao') {
+    const K = window.kakao.maps;
+    const el = document.createElement('div'); el.className = 'kme';
+    meOverlay = new K.CustomOverlay({ map: kmap, position: new K.LatLng(myPos.lat, myPos.lng), content: el, zIndex: 2 });
+  } else {
+    meOverlay = L.marker([myPos.lat, myPos.lng], { icon: L.divIcon({ className: 'nk-icon', html: '<div class="kme"></div>', iconSize: null }), interactive: false }).addTo(kmap);
+  }
 }
 async function locate(silent) {
   const pos = await getPosition();
   if (!pos) { if (!silent) toast('위치를 찾지 못했어요. 위치 권한과 GPS를 확인해 주세요'); return; }
   myPos = pos;
-  if (kmap) { kmap.setCenter(new window.kakao.maps.LatLng(pos.lat, pos.lng)); drawMe(); }
+  mapCenterTo(pos.lat, pos.lng); drawMe();
 }
 
 /* ---------- map UI (above the map) ---------- */
 function renderMapUi() {
   const ui = $('#mapUi');
-  if (mapState === 'nokey' || mapState === 'failed') {
+  if (mapState === 'failed') {
     ui.innerHTML = `<div class="mapfallback">
-      <span class="soon">${mapState === 'nokey' ? '지도 연결 전' : '지도를 불러오지 못했어요'}</span>
-      <h2 class="h-display" style="font-size:24px">카카오 지도 키를 넣어주세요</h2>
-      <p class="muted" style="margin:0;line-height:1.6">${mapState === 'failed'
-        ? '키가 틀렸거나, 카카오 개발자 사이트의 Web 플랫폼에 <b>https://localhost</b> 도메인이 등록되지 않았거나, 카카오맵 사용 설정이 꺼져 있을 수 있어요. 인터넷 연결도 확인해 주세요.'
-        : '카카오 개발자 사이트에서 받은 JavaScript 키를 넣으면 내 위치 지도가 열려요.'}</p>
-      <div class="field"><label for="keyInput">JavaScript 키</label><input id="keyInput" value="${esc(kakaoKey())}" placeholder="예: 1a2b3c4d..." autocapitalize="off" autocomplete="off" spellcheck="false"></div>
-      <button class="btn primary" data-act="saveKey">저장하고 지도 열기</button>
+      <span class="soon">지도를 불러오지 못했어요</span>
+      <h2 class="h-display" style="font-size:24px">인터넷 연결을 확인해 주세요</h2>
+      <p class="muted" style="margin:0;line-height:1.6">지도는 인터넷이 연결되어야 보여요. 급식 일정, 사진, 알람은 그대로 쓸 수 있어요.</p>
+      <button class="btn primary" data-act="retryMap">다시 시도</button>
       ${S.points.length ? `<h3 class="h-sec" style="margin-top:8px">내 급식 포인트</h3><div class="list">${S.points.map(p => `<div class="li"><b>${esc(p.name)}</b><button class="btn sm" data-act="open" data-v="${p.id}">보기</button></div>`).join('')}</div>` : ''}
     </div>`;
     return;
@@ -351,7 +398,7 @@ function render() {
   $('#view').hidden = onMap;
   if (onMap) {
     renderMapUi();
-    if (kmap) setTimeout(() => kmap.relayout(), 0);
+    setTimeout(mapRelayout, 0);
   } else {
     let html;
     if (R.screen === 'point') html = pointScreen();
@@ -381,7 +428,7 @@ function settingsSheet() {
   const cats = S.points.reduce((a, p) => a + p.cats.length, 0);
   sheet(`<h2>설정</h2>
     <div class="card"><div class="between"><span>급식 포인트</span><b>${S.points.length}곳</b></div><div class="between"><span>등록한 고양이</span><b>${cats}마리</b></div><div class="between"><span>급식 주의 구역</span><b>${S.zones.length}곳</b></div></div>
-    <div class="field"><label for="keyInput2">카카오 지도 JavaScript 키</label><input id="keyInput2" value="${esc(S.kakaoKey)}" placeholder="${kakaoKey() ? '빌드에 들어간 키 사용 중' : '키를 넣어주세요'}" autocapitalize="off" autocomplete="off" spellcheck="false"></div>
+    <div class="field"><label for="keyInput2">카카오 지도 JavaScript 키 (선택)</label><input id="keyInput2" value="${esc(S.kakaoKey)}" placeholder="${kakaoKey() ? '빌드에 들어간 키 사용 중' : '없으면 기본 지도를 써요'}" autocapitalize="off" autocomplete="off" spellcheck="false"></div>
     <button class="btn" data-act="saveKey2">키 저장</button>
     <button class="btn" data-act="testNotif">알림 테스트 (5초 뒤)</button>
     <button class="btn danger" data-act="resetAsk">모든 데이터 지우기</button>
@@ -418,7 +465,7 @@ const A = {
     await scheduleAlarm(p, p.times[0]);
   },
   open(v) { R.pointId = v; R.screen = 'point'; render(); $('#view').scrollTop = 0; },
-  showOnMap(v) { const p = pt(v); R.screen = null; R.tab = 'map'; R.sel = v; render(); if (kmap) { kmap.setCenter(new window.kakao.maps.LatLng(p.lat, p.lng)); syncOverlays(); } },
+  showOnMap(v) { const p = pt(v); R.screen = null; R.tab = 'map'; R.sel = v; render(); mapCenterTo(p.lat, p.lng); syncOverlays(); },
   feed(v) { const p = pt(v), n = nextTime(p); if (!n) return; n.doneDate = today(); save(); render(); syncOverlays(); toast(`${p.name} ${n.t} 급식 완료!`); },
   toggleDone(v, el) { const p = pt(el.dataset.p), t = p.times.find(x => x.id === v); t.doneDate = isDone(t) ? '' : today(); save(); render(); },
   async alarm(v, el) { const p = pt(el.dataset.p), t = p.times.find(x => x.id === v); t.alarm = el.checked; save(); await scheduleAlarm(p, t); toast(t.alarm ? `매일 ${t.t} 알람을 켰어요` : `${t.t} 알람을 껐어요`); },
@@ -478,8 +525,12 @@ const A = {
     save(); closeSheet(); R.screen = null; render(); syncOverlays(); toast('포인트를 지웠어요');
   },
   delZone(v) { S.zones = S.zones.filter(z => z.id !== v); save(); closeSheet(); syncOverlays(); renderMapUi(); toast('구역 표시를 지웠어요'); },
-  saveKey() { const k = $('#keyInput').value.trim(); if (!k) { toast('키를 넣어주세요'); return; } S.kakaoKey = k; save(); loadKakao(); },
-  saveKey2() { S.kakaoKey = $('#keyInput2').value.trim(); save(); closeSheet(); toast('키를 저장했어요'); kmap = null; mapState = 'idle'; loadKakao(); },
+  retryMap() { mapState = 'idle'; engine = null; loadMap(); },
+  saveKey2() {
+    S.kakaoKey = $('#keyInput2').value.trim(); save(); closeSheet();
+    if (kakaoKey()) { toast('카카오 지도로 바꾸는 중…'); loadKakao(kakaoKey()); }
+    else { toast('기본 지도를 써요'); initLeaflet(); }
+  },
   testNotif() { closeSheet(); testNotification(); },
   resetAsk() {
     sheet(`<h2>모든 데이터를 지울까요?</h2><p class="muted" style="margin:0">급식 포인트, 고양이 사진, 알람이 모두 지워져요. 되돌릴 수 없어요.</p>
@@ -537,6 +588,6 @@ async function setupNative() {
 $('#bellBtn').innerHTML = I.bell;
 $('#setBtn').innerHTML = I.gear;
 render();
-loadKakao();
+loadMap();
 setupNative();
 })();

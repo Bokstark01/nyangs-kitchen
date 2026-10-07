@@ -137,3 +137,10 @@ button{cursor:pointer}
 @keyframes up{from{transform:translateY(30px);opacity:.4}}
 .toast{position:absolute;left:50%;bottom:calc(var(--tabh) + 16px);transform:translateX(-50%);background:var(--strong);color:var(--strong-ink);padding:10px 16px;border-radius:12px;font-size:14px;font-weight:500;max-width:calc(100% - 40px);text-align:center;box-shadow:0 4px 16px var(--shadow);pointer-events:none!important}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* Leaflet(기본 지도) 마커 위치 맞춤 */
+.nk-icon{background:none;border:none;width:0!important;height:0!important}
+.nk-icon > .kzone,.nk-icon > .kme{position:absolute;transform:translate(-50%,-50%)}
+.nk-icon.nk-pin > .kpin{position:absolute;transform:translate(-50%,-22px)}
+.leaflet-container{font-family:var(--body);background:var(--map)}
+.leaflet-control-attribution{font-size:10px}
