@@ -1,0 +1,10 @@
+{
+  "appId": "com.nyangskitchen.app",
+  "appName": "냥's 키친",
+  "webDir": "www",
+  "android": { "allowMixedContent": false },
+  "server": { "androidScheme": "https" },
+  "plugins": {
+    "LocalNotifications": { "iconColor": "#2F6B4F" }
+  }
+}

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="color-scheme" content="light dark">
+<title>냥's 키친</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app" id="app">
+  <section id="mapScreen" class="screen">
+    <header class="topbar">
+      <div><div class="brand">냥's 키친</div><div class="where" id="whereLine">내 주변 급식 지도</div></div>
+      <div class="row">
+        <button class="iconbtn" data-act="tab" data-v="schedule" aria-label="급식 일정" id="bellBtn"></button>
+        <button class="iconbtn" data-act="settings" aria-label="설정" id="setBtn"></button>
+      </div>
+    </header>
+    <div class="map" id="mapBox">
+      <div id="kmap"></div>
+      <div id="mapUi"></div>
+    </div>
+  </section>
+  <main id="view" class="screen" hidden></main>
+  <nav class="tabs" id="tabs" aria-label="주요 메뉴"></nav>
+  <aside class="ad" id="adSlot" aria-label="광고 영역">
+    <div class="slot"><span class="tag">AD</span><div><b>Google 테스트 광고</b><span>배너 광고가 표시되는 자리예요</span></div></div>
+  </aside>
+  <div id="layer"></div>
+</div>
+<input type="file" id="photoInput" accept="image/*" hidden>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
