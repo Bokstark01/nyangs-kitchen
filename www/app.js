@@ -666,8 +666,13 @@ async function setupNative() {
   if (P.AdMob) {
     try {
       await P.AdMob.initialize({ initializeForTesting: ADMOB_TESTING });
-      const inset = Math.round(($('#safeProbe') && $('#safeProbe').getBoundingClientRect().height) || 0);
-      await P.AdMob.showBanner({ adId: ADMOB_BANNER_ID, adSize: 'BANNER', position: 'BOTTOM_CENTER', margin: inset, isTesting: ADMOB_TESTING });
+      // 배너 높이에 맞춰 광고 칸 크기를 맞춘다 (메뉴를 덮지 않게)
+      P.AdMob.addListener('bannerAdSizeChanged', info => {
+        const h = Math.ceil((info && info.height) || 50);
+        document.documentElement.style.setProperty('--adh', Math.max(56, h + 6) + 'px');
+      });
+      applyInsets();
+      await P.AdMob.showBanner({ adId: ADMOB_BANNER_ID, adSize: 'BANNER', position: 'BOTTOM_CENTER', margin: navInset, isTesting: ADMOB_TESTING });
     } catch (e) { /* 광고가 안 떠도 앱은 동작 */ }
   }
   // 알람 다시 맞추기 (앱 업데이트·재설치 후에도 유지되도록)
@@ -675,6 +680,24 @@ async function setupNative() {
     if (await ensureNotif()) for (const p of S.points) for (const t of p.times) if (t.alarm) await scheduleAlarm(p, t);
   }
 }
+
+/* ---------- 화면 가장자리 여백 ----------
+   안드로이드 15 이상은 앱이 상태바·내비게이션 바 밑까지 그려져서 그만큼 비워야 하고,
+   그보다 낮은 버전은 앱이 이미 바 위에서 끝나서 비우면 안 된다(두 번 비우면 빈 띠가 생기고 광고가 메뉴를 덮음).
+   실제 화면 높이와 앱 높이를 비교해서 어느 쪽인지 정한다. */
+let navInset = 0;
+function applyInsets() {
+  const probe = id => { const e = document.getElementById(id); return e ? Math.round(e.getBoundingClientRect().height) : 0; };
+  const reportedBottom = probe('safeProbe'), reportedTop = probe('safeProbeTop');
+  const gap = Math.round((window.screen && window.screen.height ? window.screen.height : window.innerHeight) - window.innerHeight);
+  const drawsUnderBars = !isNative || gap <= 8;
+  navInset = drawsUnderBars ? reportedBottom : 0;
+  const topInset = drawsUnderBars ? reportedTop : 0;
+  document.documentElement.style.setProperty('--nav-inset', navInset + 'px');
+  document.documentElement.style.setProperty('--top-inset', topInset + 'px');
+}
+applyInsets();
+window.addEventListener('resize', applyInsets);
 
 /* ---------- intro ---------- */
 const introDone = new Promise(res => {
