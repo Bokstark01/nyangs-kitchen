@@ -20,6 +20,13 @@ permissions:
   issues: write
 
 jobs:
+  server-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: 로그인 서버 점검 (PHP + SQLite)
+        run: bash server/tests/run.sh
+
   build:
     runs-on: ubuntu-latest
     env:
@@ -47,7 +54,6 @@ jobs:
           cp node_modules/leaflet/dist/leaflet.js node_modules/leaflet/dist/leaflet.css www/vendor/
           cp -r node_modules/leaflet/dist/images www/vendor/images
           cp -r node_modules/@fontsource/jua www/vendor/jua
-          cp node_modules/@supabase/supabase-js/dist/umd/supabase.js www/vendor/supabase.js
 
       - name: 앱 설정 넣기 (키·광고 ID·버전)
         shell: bash

@@ -1,4 +1,4 @@
-/* 냥's 키친 로그인: 이메일 회원가입 · 카카오 · 구글 (Supabase Auth) */
+/* 냥's 키친 로그인: 이메일 회원가입 · 카카오 · 구글 (자체 PHP 서버: server/public/api.php) */
 (function () {
 'use strict';
 
@@ -7,49 +7,58 @@ const Cap = window.Capacitor;
 const isNative = !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform());
 const P = (Cap && Cap.Plugins) || {};
 const APP_REDIRECT = 'com.nyangskitchen.app://auth';
-const REDIRECT = isNative ? APP_REDIRECT : location.href.split('#')[0].split('?')[0];
 const PRIVACY_URL = 'https://bokstark01.github.io/nyangs-kitchen/privacy.html';
-const configured = !!(CFG.supabaseUrl && CFG.supabaseKey && window.supabase && window.supabase.createClient);
+const API = String(CFG.apiBase || '').replace(/\/+$/, '');   // 예: https://도메인 (server/public 이 열리는 주소)
+const configured = /^https:\/\//.test(API) || (!!CFG.devAllowHttp && /^http:\/\//.test(API));  // 실제 앱은 https만
+const TOKEN_KEY = 'nk-auth-token', USER_KEY = 'nk-auth-user';
+const SUPPORT_EMAIL = '1984bok@gmail.com';
 
-const sb = configured ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, {
-  auth: { flowType: 'pkce', detectSessionInUrl: false, persistSession: true, autoRefreshToken: true, storage: window.localStorage }
-}) : null;
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} }
+};
+let token = store.get(TOKEN_KEY);
+
+async function api(action, data, method) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['X-NK-Token'] = token;
+  let res;
+  try {
+    res = await fetch(`${API}/api.php?action=${action}`, { method: method || 'POST', headers, body: (method || 'POST') === 'GET' ? undefined : JSON.stringify(data || {}) });
+  } catch (e) { return { error: 'network', message: '인터넷 연결을 확인해 주세요.', status: 0 }; }
+  let j = {};
+  try { j = await res.json(); } catch (e) {}
+  if (!res.ok) return { error: j.error || 'http_' + res.status, message: j.message || '서버에 문제가 생겼어요. 잠시 뒤에 다시 해주세요.', status: res.status };
+  return j;
+}
+function saveSession(t, u) { token = t; user = u; store.set(TOKEN_KEY, t); store.set(USER_KEY, JSON.stringify(u)); }
+function clearSession() { token = null; user = null; store.del(TOKEN_KEY); store.del(USER_KEY); }
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const el = document.getElementById('auth');
 
 let user = null;
-let view = 'start';        // start | email | check | forgot | newpw | setup
+let view = 'start';        // start | email | forgot | setup
 let mode = 'login';        // login | signup (email view)
 let busy = false;
 let notice = '';           // 안내 문구
 let noticeKind = 'info';   // info | error
 let lastEmail = '';
-let recovering = false;
 let entered = false;
 let resolveReady;
 const ready = new Promise(r => { resolveReady = r; });
 const listeners = [];
 
 /* ---------- 사용자 정보 ---------- */
-function displayName(u) {
-  if (!u) return '';
-  const m = u.user_metadata || {};
-  return m.nickname || m.name || m.full_name || m.user_name || m.preferred_username || (u.email || '').split('@')[0] || '집사';
-}
-function providerOf(u) { return (u && u.app_metadata && u.app_metadata.provider) || 'email'; }
+function displayName(u) { return u ? (u.nickname || (u.email || '').split('@')[0] || '집사') : ''; }
+function providerOf(u) { return (u && u.provider) || 'email'; }
 const PROVIDER_LABEL = { email: '이메일', kakao: '카카오', google: '구글' };
 
 /* ---------- 오류 문구 ---------- */
 function friendly(err) {
-  const m = String((err && (err.message || err.error_description || err)) || '');
-  if (/Invalid login credentials/i.test(m)) return '이메일이나 비밀번호가 맞지 않아요.';
-  if (/Email not confirmed/i.test(m)) return '메일함에서 가입 인증 링크를 먼저 눌러주세요.';
-  if (/already registered|already been registered|User already exists/i.test(m)) return '이미 가입된 이메일이에요. 로그인해 주세요.';
-  if (/Password should be at least|weak password/i.test(m)) return '비밀번호는 8자 이상, 영문과 숫자를 섞어 주세요.';
-  if (/rate limit|too many/i.test(m)) return '요청이 너무 많아요. 잠시 뒤에 다시 해주세요.';
-  if (/network|Failed to fetch/i.test(m)) return '인터넷 연결을 확인해 주세요.';
-  if (/provider is not enabled|Unsupported provider/i.test(m)) return '이 로그인 방식이 아직 서버에서 켜지지 않았어요.';
+  if (err && err.message) return err.message;
+  const m = String(err || '');
   if (/access_denied|cancel/i.test(m)) return '로그인을 취소했어요.';
   return m ? `문제가 생겼어요: ${m}` : '문제가 생겼어요. 다시 시도해 주세요.';
 }
@@ -103,51 +112,38 @@ function cardHtml() {
         ${signup ? `<div class="field"><label for="aPw2">비밀번호 확인</label><input id="aPw2" type="password" autocomplete="new-password"></div>
         <label class="auth-check"><input type="checkbox" id="aAgree"><span><a href="${PRIVACY_URL}" target="_blank" rel="noopener">개인정보처리방침</a>을 읽었고 동의해요 (필수)</span></label>` : ''}
         ${noticeHtml()}
-        <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${busy ? '잠시만요…' : (signup ? '가입하기' : '로그인')}</button>
+        <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${busy ? '잠시만요…' : (signup ? '가입하고 시작하기' : '로그인')}</button>
       </form>
       ${signup ? '' : `<button class="auth-link" data-auth="toForgot">비밀번호를 잊었어요</button>`}`;
   }
-  if (view === 'check') {
-    return `${backRow('메일함을 확인해 주세요')}
-      <p class="auth-p"><b>${esc(lastEmail)}</b>로 가입 인증 메일을 보냈어요. 메일의 링크를 이 휴대폰에서 누르면 바로 로그인돼요.</p>
-      ${noticeHtml()}
-      <button class="btn" data-auth="resend" ${busy ? 'disabled' : ''}>인증 메일 다시 보내기</button>
-      <button class="btn primary" data-auth="toLogin">로그인 화면으로</button>`;
-  }
   if (view === 'forgot') {
     return `${backRow('비밀번호 찾기')}
-      <p class="auth-p">가입한 이메일로 비밀번호를 새로 정하는 링크를 보내드려요.</p>
-      <form id="forgotForm" class="auth-form" novalidate>
-        <div class="field"><label for="fEmail">이메일</label><input id="fEmail" type="email" inputmode="email" autocomplete="email" autocapitalize="off" value="${esc(lastEmail)}"></div>
-        ${noticeHtml()}
-        <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>링크 보내기</button>
-      </form>`;
-  }
-  if (view === 'newpw') {
-    return `<h2 class="auth-h">새 비밀번호 정하기</h2>
-      <form id="newpwForm" class="auth-form" novalidate>
-        <div class="field"><label for="nPw">새 비밀번호</label><input id="nPw" type="password" autocomplete="new-password" placeholder="8자 이상, 영문과 숫자"></div>
-        <div class="field"><label for="nPw2">새 비밀번호 확인</label><input id="nPw2" type="password" autocomplete="new-password"></div>
-        ${noticeHtml()}
-        <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>저장하고 시작하기</button>
-      </form>`;
+      <p class="auth-p">비밀번호를 잊으셨다면 가입한 이메일로 <b>${SUPPORT_EMAIL}</b>에 메일을 보내주세요. 확인 후 다시 정할 수 있게 도와드려요.</p>
+      <button class="btn primary" data-auth="toLogin">로그인 화면으로</button>`;
   }
   return '';
 }
 
+let renderedKey = '';
 function render() {
   if (!el || el.hidden) return;
   if (!CAT) CAT = catSvg();
+  // 같은 화면을 다시 그릴 때(안내 문구만 바뀔 때) 입력한 값이 지워지지 않게 보관
+  const key = view + ':' + mode, kept = {};
+  if (key === renderedKey) el.querySelectorAll('input[id]').forEach(i => { kept[i.id] = i.type === 'checkbox' ? i.checked : i.value; });
+  const focusedId = document.activeElement && el.contains(document.activeElement) ? document.activeElement.id : '';
   const compact = view !== 'start' && view !== 'setup';
   el.innerHTML = `<div class="auth-hero ${compact ? 'compact' : ''}">${CAT}<h1 class="auth-title">냥's 키친</h1>${compact ? '' : '<p class="auth-sub">우리 동네 길고양이 밥 지도</p>'}</div>
     <div class="auth-card">${cardHtml()}</div>`;
+  Object.keys(kept).forEach(id => { const i = document.getElementById(id); if (!i) return; if (i.type === 'checkbox') i.checked = kept[id]; else i.value = kept[id]; });
+  if (focusedId && document.getElementById(focusedId)) document.getElementById(focusedId).focus();
+  renderedKey = key;
   bindForms();
 }
 function show() { if (!el) return; el.hidden = false; el.classList.remove('hide'); render(); }
 function hide() { if (!el) return; el.classList.add('hide'); setTimeout(() => { el.hidden = true; el.innerHTML = ''; }, 320); }
 
 function enter() {
-  if (recovering) { view = 'newpw'; show(); return; }
   notice = '';
   hide();
   if (!entered) { entered = true; resolveReady(user); }
@@ -159,39 +155,28 @@ const validEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
 const validPw = v => v.length >= 8 && /[A-Za-z]/.test(v) && /\d/.test(v);
 
 async function oauth(provider) {
-  if (!sb) return;
-  busy = true; say('');
-  try {
-    const opts = { redirectTo: REDIRECT, skipBrowserRedirect: true };
-    if (provider === 'google') opts.queryParams = { prompt: 'select_account' };
-    const { data, error } = await sb.auth.signInWithOAuth({ provider, options: opts });
-    if (error) throw error;
-    if (isNative && P.Browser) await P.Browser.open({ url: data.url, presentationStyle: 'popover' });
-    else location.href = data.url;
-  } catch (e) { say(friendly(e), 'error'); }
-  busy = false; render();
+  if (!configured) return;
+  const url = `${API}/${provider}.php`;
+  if (isNative && P.Browser) { try { await P.Browser.open({ url }); } catch (e) { say('브라우저를 열지 못했어요.', 'error'); } }
+  else location.href = url;
 }
 
 async function handleRedirect(url) {
-  if (!sb || !url) return;
-  if (isNative && !url.startsWith(APP_REDIRECT)) return;
+  if (!configured || !url || !url.startsWith(APP_REDIRECT)) return;
   let u;
   try { u = new URL(url); } catch (e) { return; }
   const q = u.searchParams;
-  const h = new URLSearchParams((u.hash || '').replace(/^#/, ''));
-  const err = q.get('error_description') || h.get('error_description') || q.get('error') || h.get('error');
-  const code = q.get('code');
-  const isRecovery = q.get('type') === 'recovery' || h.get('type') === 'recovery';
   if (isNative && P.Browser) { try { await P.Browser.close(); } catch (e) {} }
-  if (!isNative && (code || err)) history.replaceState(null, '', REDIRECT);
-  if (err) { view = view === 'email' ? 'email' : 'start'; say(friendly(err.replace(/\+/g, ' ')), 'error'); return; }
+  const err = q.get('error_description') || q.get('error');
+  if (err) { view = 'start'; show(); say(err, 'error'); return; }
+  const code = q.get('code');
   if (!code) return;
-  busy = true; render();
-  if (isRecovery) recovering = true;
-  const { error } = await sb.auth.exchangeCodeForSession(code);
+  busy = true; show();
+  const r = await api('exchange', { code });
   busy = false;
-  if (error) { recovering = false; view = 'start'; show(); say(friendly(error), 'error'); return; }
-  if (recovering) { view = 'newpw'; show(); }
+  if (r.error) { view = 'start'; show(); say(friendly(r), 'error'); return; }
+  saveSession(r.token, r.user);
+  enter();
 }
 
 async function submitEmail(e) {
@@ -201,6 +186,7 @@ async function submitEmail(e) {
   const pw = document.getElementById('aPw').value || '';
   lastEmail = email;
   if (!validEmail(email)) return say('이메일 주소를 확인해 주세요.', 'error');
+  let r;
   if (signup) {
     const nick = (document.getElementById('aNick').value || '').trim();
     const pw2 = document.getElementById('aPw2').value || '';
@@ -209,56 +195,20 @@ async function submitEmail(e) {
     if (pw !== pw2) return say('비밀번호 확인이 달라요.', 'error');
     if (!document.getElementById('aAgree').checked) return say('개인정보처리방침에 동의해 주세요.', 'error');
     busy = true; say('');
-    const { data, error } = await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: REDIRECT, data: { nickname: nick } } });
-    busy = false;
-    if (error) return say(friendly(error), 'error');
-    if (data && data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) return say('이미 가입된 이메일이에요. 로그인해 주세요.', 'error');
-    if (data && data.session) return; // 메일 인증을 끈 서버: 바로 로그인됨
-    view = 'check'; say('');
-    return;
+    r = await api('signup', { email, password: pw, nickname: nick });
+  } else {
+    if (!pw) return say('비밀번호를 적어주세요.', 'error');
+    busy = true; say('');
+    r = await api('login', { email, password: pw });
   }
-  if (!pw) return say('비밀번호를 적어주세요.', 'error');
-  busy = true; say('');
-  const { error } = await sb.auth.signInWithPassword({ email, password: pw });
   busy = false;
-  if (error) say(friendly(error), 'error'); else render();
-}
-
-async function submitForgot(e) {
-  e.preventDefault();
-  const email = (document.getElementById('fEmail').value || '').trim();
-  lastEmail = email;
-  if (!validEmail(email)) return say('이메일 주소를 확인해 주세요.', 'error');
-  busy = true; say('');
-  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: `${REDIRECT}?type=recovery` });
-  busy = false;
-  if (error) say(friendly(error), 'error'); else say('메일을 보냈어요. 메일의 링크를 이 휴대폰에서 눌러주세요.');
-}
-
-async function submitNewPw(e) {
-  e.preventDefault();
-  const pw = document.getElementById('nPw').value || '', pw2 = document.getElementById('nPw2').value || '';
-  if (!validPw(pw)) return say('비밀번호는 8자 이상, 영문과 숫자를 섞어 주세요.', 'error');
-  if (pw !== pw2) return say('비밀번호 확인이 달라요.', 'error');
-  busy = true; say('');
-  const { error } = await sb.auth.updateUser({ password: pw });
-  busy = false;
-  if (error) return say(friendly(error), 'error');
-  recovering = false;
+  if (r.error) return say(friendly(r), 'error');
+  saveSession(r.token, r.user);
   enter();
-}
-
-async function resend() {
-  busy = true; say('');
-  const { error } = await sb.auth.resend({ type: 'signup', email: lastEmail, options: { emailRedirectTo: REDIRECT } });
-  busy = false;
-  if (error) say(friendly(error), 'error'); else say('인증 메일을 다시 보냈어요.');
 }
 
 function bindForms() {
   const f1 = document.getElementById('authForm'); if (f1) f1.addEventListener('submit', submitEmail);
-  const f2 = document.getElementById('forgotForm'); if (f2) f2.addEventListener('submit', submitForgot);
-  const f3 = document.getElementById('newpwForm'); if (f3) f3.addEventListener('submit', submitNewPw);
 }
 
 const ACT = {
@@ -271,7 +221,6 @@ const ACT = {
   back: () => handleBack(),
   notReady: () => say('로그인 서버를 연결하는 중이에요. 지금은 둘러보기로 써주세요.'),
   browse: () => { entered = true; hide(); resolveReady(null); },
-  resend: () => resend()
 };
 if (el) el.addEventListener('click', e => {
   const b = e.target.closest('[data-auth]'); if (!b || busy) return;
@@ -280,7 +229,7 @@ if (el) el.addEventListener('click', e => {
 
 function handleBack() {
   if (!el || el.hidden) return false;
-  if (view === 'email' || view === 'check') { view = 'start'; say(''); return true; }
+  if (view === 'email') { view = 'start'; say(''); return true; }
   if (view === 'forgot') { view = 'email'; mode = 'login'; say(''); return true; }
   return false;
 }
@@ -288,22 +237,26 @@ function handleBack() {
 /* ---------- 시작 ---------- */
 async function init() {
   if (!el) return;
-  if (!configured) { view = 'setup'; show(); return; }
-  sb.auth.onAuthStateChange((event, session) => {
-    user = session ? session.user : null;
-    if (event === 'PASSWORD_RECOVERY') { recovering = true; view = 'newpw'; show(); return; }
-    if (user) { setTimeout(enter, 0); }
-    else if (event === 'SIGNED_OUT') { view = 'start'; notice = ''; show(); listeners.forEach(f => { try { f(null); } catch (e) {} }); }
-  });
-  const { data } = await sb.auth.getSession();
-  user = data && data.session ? data.session.user : null;
-  if (!user) show();
   if (isNative && P.App) {
     P.App.addListener('appUrlOpen', ev => handleRedirect(ev && ev.url));
-    try { const l = await P.App.getLaunchUrl(); if (l && l.url) handleRedirect(l.url); } catch (e) {}
-  } else if (/[?&#](code|error)=/.test(location.href)) {
-    handleRedirect(location.href);
   }
+  if (!configured) { view = 'setup'; show(); return; }
+  if (token) {
+    try { user = JSON.parse(store.get(USER_KEY) || 'null'); } catch (e) { user = null; }
+    const r = await api('me', null, 'GET');
+    if (!r.error) { user = r.user; store.set(USER_KEY, JSON.stringify(user)); enter(); }
+    else if (r.status === 401) { clearSession(); show(); }
+    else if (user) enter();          // 인터넷이 없어도 마지막 로그인 상태로 들어간다
+    else show();
+  } else show();
+  if (isNative && P.App) {
+    try { const l = await P.App.getLaunchUrl(); if (l && l.url) handleRedirect(l.url); } catch (e) {}
+  }
+}
+
+function signedOut() {
+  clearSession(); view = 'start'; notice = ''; show();
+  listeners.forEach(f => { try { f(null); } catch (e) {} });
 }
 
 window.NK_AUTH = {
@@ -315,12 +268,16 @@ window.NK_AUTH = {
   provider: () => PROVIDER_LABEL[providerOf(user)] || providerOf(user),
   onChange: f => listeners.push(f),
   handleBack,
-  async signOut() { if (sb) await sb.auth.signOut(); },
+  async signOut() {
+    if (!configured) { entered = false; view = 'setup'; show(); return; }
+    if (token) await api('logout', {});
+    signedOut();
+  },
   async deleteAccount() {
-    if (!sb || !user) return { error: '로그인 상태가 아니에요.' };
-    const { error } = await sb.rpc('delete_user');
-    if (error) return { error: friendly(error) };
-    await sb.auth.signOut();
+    if (!user) return { error: '로그인 상태가 아니에요.' };
+    const r = await api('delete', {});
+    if (r.error) return { error: friendly(r) };
+    signedOut();
     return { error: null };
   }
 };
