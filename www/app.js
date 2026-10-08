@@ -671,7 +671,6 @@ async function setupNative() {
         const h = Math.ceil((info && info.height) || 50);
         document.documentElement.style.setProperty('--adh', Math.max(56, h + 6) + 'px');
       });
-      applyInsets();
       // 광고 플러그인이 내비게이션 바 높이를 스스로 피해서 배너를 놓는다. 여기서 또 올리면 메뉴를 덮으므로 margin은 0.
       await P.AdMob.showBanner({ adId: ADMOB_BANNER_ID, adSize: 'BANNER', position: 'BOTTOM_CENTER', margin: 0, isTesting: ADMOB_TESTING });
     } catch (e) { /* 광고가 안 떠도 앱은 동작 */ }
@@ -683,22 +682,8 @@ async function setupNative() {
 }
 
 /* ---------- 화면 가장자리 여백 ----------
-   안드로이드 15 이상은 앱이 상태바·내비게이션 바 밑까지 그려져서 그만큼 비워야 하고,
-   그보다 낮은 버전은 앱이 이미 바 위에서 끝나서 비우면 안 된다(두 번 비우면 빈 띠가 생기고 광고가 메뉴를 덮음).
-   실제 화면 높이와 앱 높이를 비교해서 어느 쪽인지 정한다. */
-let navInset = 0;
-function applyInsets() {
-  const probe = id => { const e = document.getElementById(id); return e ? Math.round(e.getBoundingClientRect().height) : 0; };
-  const reportedBottom = probe('safeProbe'), reportedTop = probe('safeProbeTop');
-  const gap = Math.round((window.screen && window.screen.height ? window.screen.height : window.innerHeight) - window.innerHeight);
-  const drawsUnderBars = !isNative || gap <= 8;
-  navInset = drawsUnderBars ? reportedBottom : 0;
-  const topInset = drawsUnderBars ? reportedTop : 0;
-  document.documentElement.style.setProperty('--nav-inset', navInset + 'px');
-  document.documentElement.style.setProperty('--top-inset', topInset + 'px');
-}
-applyInsets();
-window.addEventListener('resize', applyInsets);
+   상태바·내비게이션 바 여백은 안드로이드(Capacitor)가 알려주는 값(--safe-area-inset-*)을 CSS에서 그대로 쓴다.
+   키보드가 열리고 닫힐 때도 그 값이 알아서 바뀌므로 앱에서 따로 계산하지 않는다. */
 
 /* ---------- intro ---------- */
 const introDone = new Promise(res => {
