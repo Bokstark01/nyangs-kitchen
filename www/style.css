@@ -155,3 +155,12 @@ button{cursor:pointer}
 .intro-sub{margin:4px 0 0;font-size:15px;color:#BFE3CF;font-family:var(--body)}
 @keyframes nkBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
 .brand,.h-display{font-family:'Jua',var(--display);font-weight:400}
+
+/* 꾸욱 누르기 표시 */
+.map{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.press-ring{position:absolute;z-index:6;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;border:3px solid #2F6B4F;background:rgba(47,107,79,.18);pointer-events:none;transform:scale(.3);opacity:.4;animation:nkPress .55s linear forwards}
+@keyframes nkPress{to{transform:scale(1);opacity:1}}
+.preview-pin{position:absolute;z-index:6;pointer-events:none;transform:translate(-50%,-60px);animation:nkDrop .25s ease-out}
+.preview-pin .b{width:46px;height:46px;border-radius:50%;border:3px solid #fff;background:#C2560F;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.3)}
+.preview-pin::after{content:"";position:absolute;left:50%;top:44px;width:3px;height:16px;margin-left:-1.5px;background:#C2560F}
+@keyframes nkDrop{from{transform:translate(-50%,-90px);opacity:0}}

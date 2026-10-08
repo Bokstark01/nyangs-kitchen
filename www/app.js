@@ -68,12 +68,12 @@ function toast(msg) {
   layer.appendChild(d); toastT = setTimeout(() => d.remove(), 2400);
 }
 function sheet(inner) {
-  closeSheet();
+  const prev = layer.querySelector('.scrim'); if (prev) prev.remove();
   const s = document.createElement('div'); s.className = 'scrim'; s.dataset.act = 'scrim';
   s.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>${inner}</div>`;
   layer.appendChild(s);
 }
-function closeSheet() { const s = layer.querySelector('.scrim'); if (s) { s.remove(); return true; } return false; }
+function closeSheet() { const p = document.getElementById('previewPin'); if (p) p.remove(); const s = layer.querySelector('.scrim'); if (s) { s.remove(); return true; } return false; }
 const sw = (id, on, act, extra) => `<label class="switch"><input type="checkbox" id="${id}" ${on ? 'checked' : ''} data-act="${act}" ${extra || ''} aria-label="켜기"><span></span></label>`;
 
 /* ---------- notifications ---------- */
@@ -190,9 +190,68 @@ function loadKakao(key) {
   setTimeout(() => { if (mapState === 'loading') fallback(); }, 10000);
 }
 function resetMapBox() { kObjs = []; meOverlay = null; const el = $('#kmap'); const fresh = el.cloneNode(false); el.replaceWith(fresh); }
-function onMapClick(lat, lng) {
-  if (!R.adding) { if (R.sel) { R.sel = null; syncOverlays(); renderMapUi(); } return; }
-  openAddSheet({ lat, lng });
+function onMapClick() {
+  if (lpHeld) return;
+  if (R.adding) { toast('원하는 곳을 꾸욱 눌러주세요'); return; }
+  if (R.sel) { R.sel = null; syncOverlays(); renderMapUi(); }
+}
+
+/* ---------- 꾸욱 눌러 위치 지정 (long press) ---------- */
+const LONG_PRESS_MS = 550, MOVE_TOLERANCE = 12;
+let lp = null, suppressClickUntil = 0, lpHeld = false;
+function screenToLatLng(x, y) {
+  if (!kmap) return null;
+  if (engine === 'kakao') {
+    const ll = kmap.getProjection().coordsFromContainerPoint(new window.kakao.maps.Point(x, y));
+    return { lat: ll.getLat(), lng: ll.getLng() };
+  }
+  const ll = kmap.containerPointToLatLng([x, y]);
+  return { lat: ll.lat, lng: ll.lng };
+}
+function clearPressRing() { const r = $('#pressRing'); if (r) r.remove(); }
+function clearPreviewPin() { const p = $('#previewPin'); if (p) p.remove(); }
+function cancelLongPress() { if (lp) { clearTimeout(lp.timer); lp = null; } clearPressRing(); }
+function setupLongPress() {
+  const box = $('#mapBox');
+  const ignore = t => t.closest('#mapUi button, #mapUi .peek, #mapUi .addhint, #mapUi .legend, #mapUi .mapfallback, .kpin, .kzone');
+  let pointers = 0;
+  box.addEventListener('pointerdown', e => {
+    pointers++;
+    if (pointers > 1 || mapState !== 'ready' || ignore(e.target)) { cancelLongPress(); return; }
+    const r = box.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    cancelLongPress();
+    const ring = document.createElement('div'); ring.id = 'pressRing'; ring.className = 'press-ring';
+    ring.style.left = x + 'px'; ring.style.top = y + 'px';
+    box.appendChild(ring);
+    lp = { x0: e.clientX, y0: e.clientY, x, y, timer: setTimeout(() => {
+      const at = screenToLatLng(x, y); const px = x, py = y;
+      cancelLongPress();
+      if (!at) return;
+      lpHeld = true;
+      try { if (navigator.vibrate) navigator.vibrate(30); } catch (_) {}
+      const pin = document.createElement('div'); pin.id = 'previewPin'; pin.className = 'preview-pin';
+      pin.style.left = px + 'px'; pin.style.top = py + 'px'; pin.innerHTML = `<div class="b">${I.bowl}</div>`;
+      box.appendChild(pin);
+      R.adding = false; renderMapUi();
+      openAddSheet(at);
+    }, LONG_PRESS_MS) };
+  }, true);
+  box.addEventListener('pointermove', e => {
+    if (lp && Math.hypot(e.clientX - lp.x0, e.clientY - lp.y0) > MOVE_TOLERANCE) cancelLongPress();
+  }, true);
+  const up = () => {
+    pointers = Math.max(0, pointers - 1); cancelLongPress();
+    if (lpHeld) { lpHeld = false; suppressClickUntil = Date.now() + 350; }
+  };
+  document.addEventListener('pointerup', up, true);
+  document.addEventListener('pointercancel', up, true);
+  box.addEventListener('pointerleave', () => { pointers = 0; cancelLongPress(); }, true);
+  box.addEventListener('contextmenu', e => e.preventDefault());
+  // 꾸욱 누른 손가락을 뗄 때 생기는 클릭이 방금 연 시트를 닫지 않게 막는다
+  document.addEventListener('click', e => {
+    if (lpHeld || Date.now() < suppressClickUntil) { suppressClickUntil = 0; e.stopPropagation(); e.preventDefault(); }
+  }, true);
 }
 function initKakao() {
   if (engine === 'kakao') return;
@@ -202,7 +261,7 @@ function initKakao() {
   const c = S.center || DEFAULT_CENTER;
   kmap = new K.Map($('#kmap'), { center: new K.LatLng(c.lat, c.lng), level: 3 });
   engine = 'kakao';
-  K.event.addListener(kmap, 'click', e => onMapClick(e.latLng.getLat(), e.latLng.getLng()));
+  K.event.addListener(kmap, 'click', onMapClick);
   K.event.addListener(kmap, 'idle', () => { const cc = kmap.getCenter(); S.center = { lat: cc.getLat(), lng: cc.getLng() }; save(); });
   mapState = 'ready'; syncOverlays(); renderMapUi();
   if (!S.center) locate(true);
@@ -217,7 +276,7 @@ function initLeaflet() {
     subdomains: 'abcd', maxZoom: 20, attribution: '© OpenStreetMap © CARTO'
   }).addTo(kmap);
   engine = 'leaflet';
-  kmap.on('click', e => onMapClick(e.latlng.lat, e.latlng.lng));
+  kmap.on('click', onMapClick);
   kmap.on('moveend', () => { const cc = kmap.getCenter(); S.center = { lat: cc.lat, lng: cc.lng }; save(); });
   mapState = 'ready'; syncOverlays(); renderMapUi();
   if (!S.center) locate(true);
@@ -315,13 +374,13 @@ function renderMapUi() {
         <button class="btn sm primary" style="flex:1" data-act="feed" data-v="${sel.id}" ${n ? '' : 'disabled'}>${n ? '급식 완료 체크' : '완료'}</button>
       </div></div>`;
   }
-  const empty = !S.points.length && !R.adding ? `<div class="peek"><b style="font-size:15px">첫 급식 포인트를 등록해 보세요</b><span class="small muted">오른쪽 아래 + 버튼을 누르고 지도에서 위치를 고르면 돼요.</span></div>` : '';
+  const empty = !S.points.length && !R.adding ? `<div class="peek"><b style="font-size:15px">첫 급식 포인트를 등록해 보세요</b><span class="small muted">지도에서 급식소 자리를 꾸욱 누르면 바로 등록할 수 있어요.</span></div>` : '';
   ui.innerHTML = `
     <div class="legend">
       <button data-act="filter" data-v="mine" aria-pressed="${S.filters.mine}"><span class="dot" style="background:#2F6B4F"></span>내 포인트 ${S.points.length}</button>
       <button data-act="filter" data-v="zone" aria-pressed="${S.filters.zone}"><span class="dot" style="border:2px dashed #C2560F"></span>주의 구역 ${S.zones.length}</button>
     </div>
-    ${R.adding ? `<div class="addhint"><span>등록할 위치를 지도에서 눌러주세요</span><button data-act="cancelAdd">취소</button></div>` : ''}
+    ${R.adding ? `<div class="addhint"><span>급식소 자리를 지도에서 <b>꾸욱</b> 눌러주세요</span><button data-act="cancelAdd">취소</button></div>` : ''}
     ${R.adding ? '' : `<button class="fab loc" style="bottom:${sel || empty ? 216 : 86}px" data-act="locate" aria-label="내 위치로">${I.loc}</button>
     <button class="fab" style="bottom:${sel || empty ? 152 : 20}px" data-act="startAdd" aria-label="급식 포인트 또는 주의 구역 추가">${I.plus}</button>`}
     ${peek || empty}`;
@@ -605,6 +664,7 @@ const introDone = new Promise(res => {
 $('#bellBtn').innerHTML = I.bell;
 $('#setBtn').innerHTML = I.gear;
 render();
+setupLongPress();
 loadMap();
 setupNative();
 })();
