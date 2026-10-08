@@ -672,7 +672,8 @@ async function setupNative() {
         document.documentElement.style.setProperty('--adh', Math.max(56, h + 6) + 'px');
       });
       applyInsets();
-      await P.AdMob.showBanner({ adId: ADMOB_BANNER_ID, adSize: 'BANNER', position: 'BOTTOM_CENTER', margin: navInset, isTesting: ADMOB_TESTING });
+      // 광고 플러그인이 내비게이션 바 높이를 스스로 피해서 배너를 놓는다. 여기서 또 올리면 메뉴를 덮으므로 margin은 0.
+      await P.AdMob.showBanner({ adId: ADMOB_BANNER_ID, adSize: 'BANNER', position: 'BOTTOM_CENTER', margin: 0, isTesting: ADMOB_TESTING });
     } catch (e) { /* 광고가 안 떠도 앱은 동작 */ }
   }
   // 알람 다시 맞추기 (앱 업데이트·재설치 후에도 유지되도록)
