@@ -39,6 +39,15 @@ ${removeXml}
 `;
 manifest = manifest.replace(/<application/, `${extra}\n    <application`);
 
+// 로그인 후 앱으로 돌아오는 주소: com.nyangskitchen.app://auth
+manifest = manifest.replace(/<\/activity>/, `    <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.nyangskitchen.app" android:host="auth" />
+            </intent-filter>
+        </activity>`);
+
 // AdMob 테스트 앱 ID (출시 전 본인 AdMob 앱 ID로 교체)
 const admobAppId = process.env.ADMOB_APP_ID || 'ca-app-pub-3940256099942544~3347511713';
 manifest = manifest.replace(/<\/application>/,

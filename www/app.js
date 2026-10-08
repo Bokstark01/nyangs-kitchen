@@ -490,7 +490,13 @@ function zoneSheet(id) {
 }
 function settingsSheet() {
   const cats = S.points.reduce((a, p) => a + p.cats.length, 0);
+  const AU = window.NK_AUTH;
+  const acct = AU && AU.user()
+    ? `<div class="card"><div class="between"><span>내 계정</span><b>${esc(AU.name())}</b></div><div class="between"><span class="small muted">${esc(AU.provider())} 로그인</span><span class="small muted">${esc(AU.email())}</span></div>
+        <div class="row"><button class="btn sm" style="flex:1" data-act="logout">로그아웃</button><button class="btn sm danger" style="flex:1" data-act="deleteAccountAsk">회원탈퇴</button></div></div>`
+    : (AU && AU.configured ? `<button class="btn primary" data-act="logout">로그인하기</button>` : '');
   sheet(`<h2>설정</h2>
+    ${acct}
     <div class="card"><div class="between"><span>급식 포인트</span><b>${S.points.length}곳</b></div><div class="between"><span>등록한 고양이</span><b>${cats}마리</b></div><div class="between"><span>급식 주의 구역</span><b>${S.zones.length}곳</b></div></div>
     <div class="field"><label for="keyInput2">카카오 지도 JavaScript 키 (선택)</label><input id="keyInput2" value="${esc(S.kakaoKey)}" placeholder="${kakaoKey() ? '빌드에 들어간 키 사용 중' : '없으면 기본 지도를 써요'}" autocapitalize="off" autocomplete="off" spellcheck="false"></div>
     <button class="btn" data-act="saveKey2">키 저장</button>
@@ -597,6 +603,20 @@ const A = {
     else { toast('기본 지도를 써요'); initLeaflet(); }
   },
   testNotif() { closeSheet(); testNotification(); },
+  async logout() { closeSheet(); if (window.NK_AUTH) await window.NK_AUTH.signOut(); },
+  deleteAccountAsk() {
+    sheet(`<h2>회원탈퇴할까요?</h2><p class="muted" style="margin:0;line-height:1.6">계정과 로그인 정보가 서버에서 바로 지워지고 되돌릴 수 없어요.</p>
+      <label class="auth-check"><input type="checkbox" id="delLocal" checked><span>이 휴대폰의 급식 기록과 고양이 사진도 함께 지우기</span></label>
+      <button class="btn danger" data-act="deleteAccount">탈퇴하기</button><button class="btn" data-act="closeSheet">취소</button>`);
+  },
+  async deleteAccount() {
+    const alsoLocal = $('#delLocal') && $('#delLocal').checked;
+    const r = await window.NK_AUTH.deleteAccount();
+    if (r.error) { toast(r.error); return; }
+    closeSheet();
+    if (alsoLocal) await A.resetAll();
+    toast('탈퇴했어요. 그동안 고마웠어요');
+  },
   resetAsk() {
     sheet(`<h2>모든 데이터를 지울까요?</h2><p class="muted" style="margin:0">급식 포인트, 고양이 사진, 알람이 모두 지워져요. 되돌릴 수 없어요.</p>
       <button class="btn danger" data-act="resetAll">모두 지우기</button><button class="btn" data-act="closeSheet">취소</button>`);
@@ -624,6 +644,9 @@ async function setupNative() {
   if (!isNative) return;
   if (P.App) {
     P.App.addListener('backButton', () => {
+      if (window.NK_AUTH && window.NK_AUTH.handleBack()) return;
+      const authEl = document.getElementById('auth');
+      if (authEl && !authEl.hidden) { P.App.exitApp(); return; }
       if (closeSheet()) return;
       if (R.adding) { A.cancelAdd(); return; }
       if (R.screen) { A.back(); return; }
@@ -639,6 +662,7 @@ async function setupNative() {
     });
   }
   await introDone;
+  if (window.NK_AUTH) await window.NK_AUTH.ready;
   if (P.AdMob) {
     try {
       await P.AdMob.initialize({ initializeForTesting: ADMOB_TESTING });
