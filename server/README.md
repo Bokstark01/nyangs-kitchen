@@ -2,6 +2,16 @@
 
 앱의 회원가입·이메일 로그인·카카오 로그인·구글 로그인을 처리하는 서버예요. PHP 파일 몇 개와 MySQL 테이블 5개로 되어 있어요.
 
+## 빠른 설치 (새 서버, 명령 한 줄)
+
+새 Ubuntu 서버라면 root로 접속해서 아래 한 줄이면 1~5번이 끝나요. DB 비밀번호는 서버 안에서 무작위로 만들어 `config.php`에만 저장해요.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Bokstark01/nyangs-kitchen/main/server/install.sh | bash
+# 도메인을 서버 IP에 연결한 뒤 (HTTPS까지):
+bash /var/www/nyangs-kitchen/server/install.sh api.도메인.com
+```
+
 ## 0. 꼭 필요한 것: 도메인과 HTTPS
 
 앱은 보안상 **https 주소로만** 서버와 통신해요. 구글 로그인도 IP 주소가 아닌 도메인이 있어야 돼요.
