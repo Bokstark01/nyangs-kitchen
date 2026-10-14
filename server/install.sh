@@ -71,18 +71,48 @@ systemctl reload apache2
 HEALTH="$(curl -s -H "Host: $NAME" "http://127.0.0.1/api.php?action=health" || true)"
 echo "서버 점검: $HEALTH"
 
-say "6/6 HTTPS 인증서"
+say "6/6 소개 홈페이지와 HTTPS 인증서"
+dns_ok() { [ "$(getent ahostsv4 "$1" | awk 'NR==1{print $1}')" = "$PUBLIC_IP" ]; }
 if [ -z "$DOMAIN" ]; then
   warn "도메인이 아직 없어서 HTTPS는 건너뛰어요. 도메인 연결 후:  bash $APP_DIR/server/install.sh api.도메인"
 else
-  RESOLVED="$(getent ahostsv4 "$DOMAIN" | awk 'NR==1{print $1}')"
-  if [ "$RESOLVED" != "$PUBLIC_IP" ]; then
-    warn "$DOMAIN 이 아직 이 서버($PUBLIC_IP)를 가리키지 않아요 (현재: ${RESOLVED:-없음})."
-    warn "가비아 DNS의 A 레코드를 확인하고 10~30분 뒤 이 명령을 다시 실행하세요."
-    exit 0
+  # 로그인 서버 (api.도메인)
+  if dns_ok "$DOMAIN"; then
+    certbot --apache -d "$DOMAIN" --non-interactive --agree-tos -m "$EMAIL" --redirect -q --keep-until-expiring
+    echo "https 점검: $(curl -s "https://$DOMAIN/api.php?action=health" || true)"
+  else
+    warn "$DOMAIN 이 아직 이 서버($PUBLIC_IP)를 가리키지 않아요. 가비아 DNS의 A 레코드를 확인하고 10~30분 뒤 다시 실행하세요."
   fi
-  certbot --apache -d "$DOMAIN" --non-interactive --agree-tos -m "$EMAIL" --redirect -q
-  echo "https 점검: $(curl -s "https://$DOMAIN/api.php?action=health" || true)"
+  # 소개 홈페이지 (도메인 · www.도메인) → 저장소의 docs 폴더
+  ROOT="${DOMAIN#api.}"
+  if [ "$ROOT" != "$DOMAIN" ]; then
+    SITE_NAMES=""
+    for h in "$ROOT" "www.$ROOT"; do dns_ok "$h" && SITE_NAMES="$SITE_NAMES $h"; done
+    cat > /etc/apache2/sites-available/nyangs-kitchen-site.conf <<CONF
+<VirtualHost *:80>
+    ServerName $ROOT
+    ServerAlias www.$ROOT
+    DocumentRoot $APP_DIR/docs
+    <Directory $APP_DIR/docs>
+        Options -Indexes
+        AllowOverride None
+        Require all granted
+    </Directory>
+    ErrorLog \${APACHE_LOG_DIR}/nyangs-kitchen-site-error.log
+    CustomLog \${APACHE_LOG_DIR}/nyangs-kitchen-site-access.log combined
+</VirtualHost>
+CONF
+    a2ensite -q nyangs-kitchen-site >/dev/null
+    systemctl reload apache2
+    if [ -n "$SITE_NAMES" ]; then
+      ARGS=""; for h in $SITE_NAMES; do ARGS="$ARGS -d $h"; done
+      # shellcheck disable=SC2086
+      certbot --apache $ARGS --cert-name "$ROOT" --expand --non-interactive --agree-tos -m "$EMAIL" --redirect -q --keep-until-expiring
+      for h in $SITE_NAMES; do echo "홈페이지 점검 https://$h : $(curl -s -o /dev/null -w '%{http_code}' "https://$h/")"; done
+    else
+      warn "$ROOT, www.$ROOT 가 아직 이 서버를 가리키지 않아요. 가비아 DNS에 @ 와 www A 레코드를 넣고 다시 실행하세요."
+    fi
+  fi
 fi
 
 say "끝! 위의 '서버 점검' 줄에 {\"ok\":true ...} 가 보이면 성공이에요. 이 화면을 캡처해서 Claude에게 보내주세요."

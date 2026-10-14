@@ -7,7 +7,7 @@ const Cap = window.Capacitor;
 const isNative = !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform());
 const P = (Cap && Cap.Plugins) || {};
 const APP_REDIRECT = 'com.nyangskitchen.app://auth';
-const PRIVACY_URL = 'https://bokstark01.github.io/nyangs-kitchen/privacy.html';
+const PRIVACY_URL = 'https://nyangs-kitchen.com/privacy.html';
 const API = String(CFG.apiBase || '').replace(/\/+$/, '');   // 예: https://도메인 (server/public 이 열리는 주소)
 const configured = /^https:\/\//.test(API) || (!!CFG.devAllowHttp && /^http:\/\//.test(API));  // 실제 앱은 https만
 const TOKEN_KEY = 'nk-auth-token', USER_KEY = 'nk-auth-user';

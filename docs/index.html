@@ -3,18 +3,226 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>냥's 키친</title>
+<title>냥's 키친 · 우리 동네 길고양이 밥 지도</title>
+<meta name="description" content="냥's 키친은 길고양이 급식 장소와 밥 주는 시간, 찾아오는 고양이를 지도 위에 기록하는 앱이에요. 사진과 위치는 내 휴대폰에만 저장돼요.">
+<meta property="og:title" content="냥's 키친 · 우리 동네 길고양이 밥 지도">
+<meta property="og:description" content="급식 장소를 꾸욱 눌러 지도에 남기고, 밥 시간 알림을 받아요.">
+<meta name="theme-color" content="#1F4A36">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-  body{margin:0;min-height:100vh;display:grid;place-items:center;background:#1F4A36;color:#F4ECD6;font:16px/1.6 'Apple SD Gothic Neo','Noto Sans KR',system-ui,sans-serif;text-align:center;padding:24px}
-  h1{font-size:36px;margin:8px 0}
-  a{color:#BFE3CF}
+  :root{
+    --green:#2F6B4F; --deep:#1F4A36; --ink:#183A2B; --cream:#F4ECD6; --paper:#FBF7EC;
+    --warn:#C2560F; --blush:#E9A58A; --muted:#5B6B62; --line:#E3DCC8;
+    --display:'Jua','Noto Sans KR',system-ui,sans-serif;
+    --body:'Noto Sans KR','Apple SD Gothic Neo',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.7 var(--body);-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+
+  /* 상단 */
+  .top{background:var(--deep);color:var(--cream)}
+  .nav{display:flex;align-items:center;justify-content:space-between;padding:18px 0}
+  .logo{display:flex;align-items:center;gap:10px;font:24px/1 var(--display);text-decoration:none}
+  .logo svg{width:34px;height:34px}
+  .nav a.link{font-size:14px;opacity:.85;text-decoration:none;margin-left:18px}
+  .nav a.link:hover{opacity:1;text-decoration:underline}
+
+  .hero{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center;padding:36px 0 80px}
+  .badge{display:inline-flex;align-items:center;gap:8px;background:rgba(244,236,214,.12);border:1px solid rgba(244,236,214,.25);
+    padding:6px 14px;border-radius:999px;font-size:14px}
+  .badge i{width:8px;height:8px;border-radius:50%;background:#F2B544;display:inline-block}
+  h1{font:400 clamp(40px,7vw,68px)/1.08 var(--display);margin:18px 0 14px;letter-spacing:.5px}
+  h1 em{font-style:normal;color:#F2B544}
+  .lead{font-size:clamp(17px,2.2vw,19px);opacity:.92;max-width:30em;margin:0 0 28px}
+  .cta{display:flex;flex-wrap:wrap;gap:12px}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:14px 22px;border-radius:14px;font-weight:700;text-decoration:none;font-size:16px}
+  .btn.primary{background:var(--cream);color:var(--deep)}
+  .btn.ghost{border:1.5px solid rgba(244,236,214,.45)}
+  .btn[aria-disabled="true"]{cursor:default}
+
+  /* 휴대폰 */
+  .phone{justify-self:center;width:min(300px,78vw);aspect-ratio:9/18.5;border-radius:38px;background:#0f241b;padding:12px;
+    box-shadow:0 30px 60px -20px rgba(0,0,0,.55), inset 0 0 0 2px rgba(255,255,255,.06);position:relative}
+  .screen{width:100%;height:100%;border-radius:28px;overflow:hidden;position:relative;background:#E8EFE4}
+  .map{position:absolute;inset:0;background:
+      linear-gradient(90deg,transparent 46%,#fff 46%,#fff 54%,transparent 54%) 0 0/100% 100%,
+      linear-gradient(0deg,transparent 30%,#fff 30%,#fff 36%,transparent 36%) 0 0/100% 100%,
+      linear-gradient(0deg,transparent 70%,#fff 70%,#fff 74%,transparent 74%) 0 0/100% 100%,
+      linear-gradient(90deg,transparent 18%,#fff 18%,#fff 21%,transparent 21%) 0 0/100% 100%;}
+  .park{position:absolute;left:58%;top:40%;width:34%;height:24%;background:#CFE3C6;border-radius:14px}
+  .zone{position:absolute;left:4%;top:42%;width:36%;height:22%;border-radius:50%;background:rgba(194,86,15,.16);border:2px dashed rgba(194,86,15,.55)}
+  .pin{position:absolute;width:36px;height:36px;margin:-36px 0 0 -18px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--green);
+    box-shadow:0 4px 8px rgba(0,0,0,.25);display:grid;place-items:center}
+  .pin span{transform:rotate(45deg);font-size:17px}
+  .appbar{position:absolute;left:0;right:0;top:0;padding:14px 16px 10px;background:linear-gradient(#fff,rgba(255,255,255,.88));
+    font:20px/1 var(--display);color:var(--deep);display:flex;justify-content:space-between;align-items:center}
+  .appbar small{font:500 11px/1 var(--body);color:var(--muted)}
+  .card{position:absolute;left:10px;right:10px;bottom:62px;background:#fff;color:var(--muted);border-radius:16px;padding:12px 14px;box-shadow:0 8px 20px rgba(0,0,0,.12);font-size:12.5px;line-height:1.5}
+  .card b{font:17px/1.2 var(--display);color:var(--deep);display:block;margin-bottom:2px}
+  .chips{display:flex;gap:6px;margin-top:8px}
+  .chip{background:#EEF4EE;color:var(--green);border-radius:999px;padding:2px 9px;font-weight:700;font-size:11px}
+  .tabs{position:absolute;left:0;right:0;bottom:0;height:52px;background:#fff;display:flex;justify-content:space-around;align-items:center;font-size:10.5px;color:var(--muted);border-top:1px solid #eee}
+  .tabs .on{color:var(--green);font-weight:700}
+
+  /* 본문 */
+  section{padding:84px 0}
+  .eyebrow{font:400 18px/1 var(--display);color:var(--warn);letter-spacing:.5px}
+  h2{font:400 clamp(30px,4.6vw,42px)/1.2 var(--display);margin:10px 0 14px;color:var(--deep)}
+  .sub{color:var(--muted);max-width:36em;margin:0}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:40px}
+  .feat{background:#fff;border:1px solid var(--line);border-radius:20px;padding:24px}
+  .feat .ic{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;font-size:24px;background:#EEF4EE;margin-bottom:14px}
+  .feat h3{font:400 22px/1.3 var(--display);margin:0 0 6px;color:var(--deep)}
+  .feat p{margin:0;color:var(--muted);font-size:15px}
+  .feat.soon{background:transparent;border-style:dashed}
+  .tag{display:inline-block;font-size:12px;font-weight:700;color:var(--warn);background:#FBE9DD;border-radius:999px;padding:2px 10px;margin-left:6px;vertical-align:3px}
+
+  .privacy{background:var(--cream)}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center}
+  .vault{background:var(--deep);color:var(--cream);border-radius:24px;padding:28px}
+  .vault li{list-style:none;padding:12px 0;border-bottom:1px solid rgba(244,236,214,.15);display:flex;gap:12px}
+  .vault li:last-child{border:0}
+  .vault ul{margin:0;padding:0}
+  .vault b{display:block;font:400 19px/1.3 var(--display)}
+  .vault span{opacity:.8;font-size:14.5px}
+
+  .steps{counter-reset:s;display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:36px}
+  .step{counter-increment:s;padding-top:52px;position:relative}
+  .step::before{content:counter(s);position:absolute;top:0;left:0;width:40px;height:40px;border-radius:50%;background:var(--green);color:var(--cream);
+    display:grid;place-items:center;font:400 20px/1 var(--display)}
+  .step h3{font:400 21px/1.3 var(--display);margin:0 0 6px;color:var(--deep)}
+  .step p{margin:0;color:var(--muted);font-size:15px}
+
+  .closing{background:var(--green);color:var(--cream);text-align:center}
+  .closing h2{color:var(--cream)}
+  .closing p{opacity:.9;margin:0 auto 26px;max-width:32em}
+
+  footer{background:#122C20;color:rgba(244,236,214,.75);font-size:14px;padding:36px 0}
+  footer .row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px}
+  footer a{color:var(--cream)}
+  footer nav a{margin-right:16px}
+
+  @media (max-width:860px){
+    .hero,.split{grid-template-columns:1fr}
+    .hero{padding:16px 0 64px}
+    .grid,.steps{grid-template-columns:1fr}
+    section{padding:64px 0}
+    .nav a.link.hide-sm{display:none}
+  }
 </style>
 </head>
 <body>
+
+<header class="top">
+  <div class="wrap">
+    <nav class="nav">
+      <a class="logo" href="#">
+        <svg viewBox="0 0 240 240" aria-hidden="true"><path d="M58 98 L66 26 L114 66 Z" fill="#F4ECD6"/><path d="M182 98 L174 26 L126 66 Z" fill="#F4ECD6"/><ellipse cx="120" cy="120" rx="76" ry="68" fill="#F4ECD6"/><path d="M84 112 q13 -14 26 0 M130 112 q13 -14 26 0" stroke="#1F4A36" stroke-width="9" fill="none" stroke-linecap="round"/><path d="M106 140 q7 9 14 0 q7 9 14 0" stroke="#1F4A36" stroke-width="7" fill="none" stroke-linecap="round"/></svg>
+        냥's 키친
+      </a>
+      <div>
+        <a class="link hide-sm" href="#features">기능</a>
+        <a class="link hide-sm" href="#privacy">개인정보</a>
+        <a class="link" href="mailto:1984bok@gmail.com">문의</a>
+      </div>
+    </nav>
+
+    <div class="hero">
+      <div>
+        <span class="badge"><i></i>Google Play 출시 준비 중</span>
+        <h1>우리 동네<br><em>길고양이 밥 지도</em></h1>
+        <p class="lead">밥 놓는 자리를 지도에 꾸욱 눌러 남기고, 찾아오는 고양이 사진과 밥 시간을 한곳에서 챙겨요. 밥 주는 일이 조금 더 쉽고, 조금 더 조용해지도록.</p>
+        <div class="cta">
+          <a class="btn primary" aria-disabled="true">곧 Google Play에서 만나요</a>
+          <a class="btn ghost" href="#features">무엇을 할 수 있나요?</a>
+        </div>
+      </div>
+
+      <div class="phone" aria-label="앱 화면 예시">
+        <div class="screen">
+          <div class="map"></div>
+          <div class="park"></div>
+          <div class="zone"></div>
+          <div class="pin" style="left:30%;top:28%"><span>🍚</span></div>
+          <div class="pin" style="left:70%;top:52%;background:#C2560F"><span>🐈</span></div>
+          <div class="pin" style="left:44%;top:66%"><span>🍚</span></div>
+          <div class="appbar">냥's 키친 <small>내 급식소 3곳</small></div>
+          <div class="card"><b>공원 벤치 뒤 급식소</b>오늘 저녁 7:00 알림 · 단골 3마리<div class="chips"><span class="chip">치즈</span><span class="chip">고등어</span><span class="chip">삼색이</span></div></div>
+          <div class="tabs"><span class="on">지도</span><span>일정</span><span>이웃</span><span>탐정</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
 <main>
-  <h1>냥's 키친</h1>
-  <p>우리 동네 길고양이 밥 지도</p>
-  <p><a href="privacy.html">개인정보처리방침</a> · <a href="mailto:1984bok@gmail.com">문의 1984bok@gmail.com</a></p>
+  <section id="features">
+    <div class="wrap">
+      <div class="eyebrow">무엇을 할 수 있나요</div>
+      <h2>밥 주는 사람을 위한 작은 도구들</h2>
+      <p class="sub">길고양이 급식을 꾸준히 이어가는 데 필요한 것만 담았어요.</p>
+
+      <div class="grid">
+        <article class="feat"><div class="ic">📍</div><h3>꾸욱 눌러 급식소 등록</h3><p>지도에서 원하는 자리를 길게 누르면 급식 포인트가 생겨요. 이름과 메모도 남길 수 있어요.</p></article>
+        <article class="feat"><div class="ic">📷</div><h3>찾아오는 고양이 기록</h3><p>급식소마다 고양이 사진과 이름을 모아둬요. 사진은 원본 그대로 내 휴대폰에만 저장돼요.</p></article>
+        <article class="feat"><div class="ic">⏰</div><h3>밥 시간 알림</h3><p>매일 정해진 시간에 알림을 받고, 오늘 밥을 줬는지 한눈에 확인해요.</p></article>
+        <article class="feat"><div class="ic">⚠️</div><h3>급식 주의 구역</h3><p>민원이 있거나 조심해야 하는 곳을 지도에 표시해, 갈등 없이 밥을 줄 수 있게 도와요.</p></article>
+        <article class="feat soon"><div class="ic">🤝</div><h3>이웃과 함께 <span class="tag">준비 중</span></h3><p>내가 고른 사람에게만 급식소를 공유하고, 여행이나 출장 때 밥 주기를 부탁할 수 있어요.</p></article>
+        <article class="feat soon"><div class="ic">🔎</div><h3>탐정모드 <span class="tag">준비 중</span></h3><p>고양이를 잃어버렸을 때, 잃어버린 곳에서 50m, 100m 안의 급식소를 차례로 찾아 알려줘요.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section id="privacy" class="privacy">
+    <div class="wrap split">
+      <div>
+        <div class="eyebrow">개인정보</div>
+        <h2>고양이 사진과 위치는<br>내 휴대폰에</h2>
+        <p class="sub">급식 장소는 고양이의 안전과도 연결돼 있어요. 그래서 냥's 키친은 급식 포인트, 사진, 밥 시간 기록을 서버로 보내지 않아요. 서버에는 로그인에 필요한 최소한의 계정 정보만 있어요.</p>
+        <p class="sub" style="margin-top:14px"><a href="privacy.html">개인정보처리방침 전문 보기 →</a></p>
+      </div>
+      <div class="vault">
+        <ul>
+          <li><span>📱</span><div><b>휴대폰에만 저장</b><span>급식 포인트 · 고양이 사진 · 밥 시간 · 주의 구역</span></div></li>
+          <li><span>🔐</span><div><b>서버에 저장</b><span>로그인 계정 정보 (이메일 · 닉네임, 또는 카카오 · 구글 계정 ID)</span></div></li>
+          <li><span>🗑️</span><div><b>언제든 삭제</b><span>앱 설정에서 회원탈퇴하면 계정이 바로 지워져요</span></div></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="eyebrow">시작하기</div>
+      <h2>세 단계면 충분해요</h2>
+      <div class="steps">
+        <div class="step"><h3>가입</h3><p>이메일, 카카오, 구글 중 편한 방법으로 시작해요.</p></div>
+        <div class="step"><h3>급식소 등록</h3><p>지도에서 밥 놓는 자리를 꾸욱 눌러 저장해요.</p></div>
+        <div class="step"><h3>알림 맞추기</h3><p>밥 시간을 정해두면 매일 잊지 않고 챙길 수 있어요.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="closing">
+    <div class="wrap">
+      <h2>곧 Google Play에서 만나요</h2>
+      <p>출시 소식이나 제안하고 싶은 기능이 있다면 언제든 메일 주세요.</p>
+      <a class="btn primary" href="mailto:1984bok@gmail.com">1984bok@gmail.com</a>
+    </div>
+  </section>
 </main>
+
+<footer>
+  <div class="wrap row">
+    <div>운영: 티닉스 · 문의 <a href="mailto:1984bok@gmail.com">1984bok@gmail.com</a><br>© 2026 티닉스. 냥's 키친.</div>
+    <nav><a href="privacy.html">개인정보처리방침</a><a href="delete-account.html">계정 삭제 안내</a></nav>
+  </div>
+</footer>
+
 </body>
 </html>

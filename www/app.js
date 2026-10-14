@@ -10,7 +10,7 @@ const ADMOB_BANNER_TEST_ID = 'ca-app-pub-3940256099942544/6300978111';
 const CFG = window.NK_CONFIG || {};
 const ADMOB_BANNER_ID = CFG.admobBannerId || ADMOB_BANNER_TEST_ID;
 const ADMOB_TESTING = ADMOB_BANNER_ID === ADMOB_BANNER_TEST_ID;
-const PRIVACY_URL = 'https://bokstark01.github.io/nyangs-kitchen/privacy.html';
+const PRIVACY_URL = 'https://nyangs-kitchen.com/privacy.html';
 const APP_VERSION = CFG.version || '1.0.0';
 const STORE_KEY = 'nyangs-kitchen-v1';
 
