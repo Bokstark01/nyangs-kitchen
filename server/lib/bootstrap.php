@@ -112,6 +112,7 @@ function find_user(int $id): ?array {
 }
 function delete_user(int $id): void {
     $db = db();
+    delete_user_shares($id);
     $db->prepare('DELETE FROM nk_tokens WHERE user_id = ?')->execute([$id]);
     $db->prepare('DELETE FROM nk_codes WHERE user_id = ?')->execute([$id]);
     $db->prepare('DELETE FROM nk_users WHERE id = ?')->execute([$id]);
@@ -191,3 +192,5 @@ function http_call(string $method, string $url, array $form = [], array $headers
     $json = is_string($raw) ? json_decode($raw, true) : null;
     return ['status' => $status, 'json' => is_array($json) ? $json : []];
 }
+
+require __DIR__ . '/share.php';

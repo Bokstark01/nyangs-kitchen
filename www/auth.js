@@ -20,12 +20,12 @@ const store = {
 };
 let token = store.get(TOKEN_KEY);
 
-async function api(action, data, method) {
+async function api(action, data, method, file, query) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers['X-NK-Token'] = token;
   let res;
   try {
-    res = await fetch(`${API}/api.php?action=${action}`, { method: method || 'POST', headers, body: (method || 'POST') === 'GET' ? undefined : JSON.stringify(data || {}) });
+    res = await fetch(`${API}/${file || 'api.php'}?action=${action}${query || ''}`, { method: method || 'POST', headers, body: (method || 'POST') === 'GET' ? undefined : JSON.stringify(data || {}) });
   } catch (e) { return { error: 'network', message: '인터넷 연결을 확인해 주세요.', status: 0 }; }
   let j = {};
   try { j = await res.json(); } catch (e) {}
@@ -268,6 +268,22 @@ window.NK_AUTH = {
   provider: () => PROVIDER_LABEL[providerOf(user)] || providerOf(user),
   onChange: f => listeners.push(f),
   handleBack,
+  // 이웃과 함께 (share.php)
+  async share(action, data, method) {
+    if (!configured) return { error: 'not_configured', message: '서버가 연결되지 않은 테스트 버전이에요.' };
+    if (!token) return { error: 'unauthorized', message: '로그인해 주세요.', status: 401 };
+    const r = await api(action, data, method, 'share.php');
+    if (r.status === 401) signedOut();
+    return r;
+  },
+  async sharePhoto(shareId, f) {
+    if (!configured || !token) return null;
+    try {
+      const res = await fetch(`${API}/share.php?action=photo&share_id=${encodeURIComponent(shareId)}&f=${encodeURIComponent(f)}`, { headers: { 'X-NK-Token': token } });
+      if (!res.ok) return null;
+      return URL.createObjectURL(await res.blob());
+    } catch (e) { return null; }
+  },
   async signOut() {
     if (!configured) { entered = false; view = 'setup'; show(); return; }
     if (token) await api('logout', {});

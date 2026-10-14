@@ -45,6 +45,7 @@ manifest = manifest.replace(/<\/activity>/, `    <intent-filter>
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="com.nyangskitchen.app" android:host="auth" />
+                <data android:scheme="com.nyangskitchen.app" android:host="join" />
             </intent-filter>
         </activity>`);
 

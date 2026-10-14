@@ -60,6 +60,9 @@ PUBLIC_IP="$(hostname -I | awk '{print $1}')"
 if [ -n "$DOMAIN" ]; then BASE="https://$DOMAIN"; NAME="$DOMAIN"; else BASE="http://$PUBLIC_IP"; NAME="$PUBLIC_IP"; fi
 sed -i "s|'base_url' => '[^']*'|'base_url' => '$BASE'|" "$CONF"
 chown root:www-data "$CONF" && chmod 640 "$CONF"
+# 공유한 급식소의 작은 고양이 사진 보관 폴더 (웹 주소로는 열리지 않는 곳)
+mkdir -p "$APP_DIR/server/storage/shares"
+chown -R www-data:www-data "$APP_DIR/server/storage" && chmod 750 "$APP_DIR/server/storage"
 
 say "5/6 웹서버(Apache) 사이트 설정: $NAME"
 sed -e "s|ServerName .*|ServerName $NAME|" "$APP_DIR/server/apache-nyangs-kitchen.conf" \

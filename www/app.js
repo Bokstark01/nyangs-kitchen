@@ -46,7 +46,7 @@ const isDone = t => t.doneDate === today();
 const CAT_COLORS = ['#E9C79A', '#3A3A3A', '#C9A27A', '#8C8F86', '#D8D2C6', '#B5835A'];
 
 /* ---------- state ---------- */
-function blank() { return { points: [], zones: [], filters: { mine: true, zone: true }, kakaoKey: '', nextNid: 1000, center: null }; }
+function blank() { return { points: [], zones: [], filters: { mine: true, zone: true, shared: true }, kakaoKey: '', nextNid: 1000, center: null }; }
 let S;
 try { S = Object.assign(blank(), JSON.parse(localStorage.getItem(STORE_KEY)) || {}); } catch (e) { S = blank(); }
 function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { toast('저장 공간이 부족해요'); } }
@@ -293,6 +293,12 @@ function pinEl(p) {
   el.innerHTML = `<div class="b">${I.bowl}</div><div class="l">${esc(p.name)}</div>`;
   return el;
 }
+function sharedPinEl(s) {
+  const el = document.createElement('div');
+  el.className = 'kpin shared';
+  el.innerHTML = `<div class="b">${I.people.replace('width="22" height="22"', 'width="20" height="20"')}</div><div class="l">${esc(s.name)}</div>`;
+  return el;
+}
 function selectPin(id) { if (R.adding) return; R.sel = id; syncOverlays(); renderMapUi(); }
 function syncOverlays() {
   if (!kmap) return;
@@ -311,6 +317,11 @@ function syncOverlays() {
       el.addEventListener('click', ev => { ev.stopPropagation(); selectPin(p.id); });
       kObjs.push(new K.CustomOverlay({ map: kmap, position: new K.LatLng(p.lat, p.lng), content: el, yAnchor: 0.35, clickable: true, zIndex: 3 }));
     });
+    if (S.filters.shared !== false) SH.joined.forEach(s => {
+      const el = sharedPinEl(s);
+      el.addEventListener('click', ev => { ev.stopPropagation(); A.openShared(s.id); });
+      kObjs.push(new K.CustomOverlay({ map: kmap, position: new K.LatLng(s.lat, s.lng), content: el, yAnchor: 0.35, clickable: true, zIndex: 2 }));
+    });
   } else {
     if (S.filters.zone) S.zones.forEach(z => {
       kObjs.push(L.circle([z.lat, z.lng], { radius: z.radius || 40, color: '#C2560F', weight: 2, dashArray: '6 6', fillColor: '#C2560F', fillOpacity: 0.14, interactive: false }).addTo(kmap));
@@ -320,6 +331,10 @@ function syncOverlays() {
     if (S.filters.mine) S.points.forEach(p => {
       const icon = L.divIcon({ className: 'nk-icon nk-pin', html: pinEl(p).outerHTML, iconSize: null });
       kObjs.push(L.marker([p.lat, p.lng], { icon, zIndexOffset: 500 }).on('click', () => selectPin(p.id)).addTo(kmap));
+    });
+    if (S.filters.shared !== false) SH.joined.forEach(s => {
+      const icon = L.divIcon({ className: 'nk-icon nk-pin', html: sharedPinEl(s).outerHTML, iconSize: null });
+      kObjs.push(L.marker([s.lat, s.lng], { icon, zIndexOffset: 400 }).on('click', () => A.openShared(s.id)).addTo(kmap));
     });
   }
   drawMe();
@@ -379,6 +394,7 @@ function renderMapUi() {
     <div class="legend">
       <button data-act="filter" data-v="mine" aria-pressed="${S.filters.mine}"><span class="dot" style="background:#2F6B4F"></span>내 포인트 ${S.points.length}</button>
       <button data-act="filter" data-v="zone" aria-pressed="${S.filters.zone}"><span class="dot" style="border:2px dashed #C2560F"></span>주의 구역 ${S.zones.length}</button>
+      ${SH.joined.length ? `<button data-act="filter" data-v="shared" aria-pressed="${S.filters.shared !== false}"><span class="dot" style="background:#6B4FA0"></span>공유받은 곳 ${SH.joined.length}</button>` : ''}
     </div>
     ${R.adding ? `<div class="addhint"><span>급식소 자리를 지도에서 <b>꾸욱</b> 눌러주세요</span><button data-act="cancelAdd">취소</button></div>` : ''}
     ${R.adding ? '' : `<button class="fab loc" style="bottom:${sel || empty ? 216 : 86}px" data-act="locate" aria-label="내 위치로">${I.loc}</button>
@@ -387,10 +403,10 @@ function renderMapUi() {
 }
 
 /* ---------- screens ---------- */
-const TABS = [['map', '지도', I.map], ['schedule', '급식 일정', I.clock], ['share', '공유', I.people], ['board', '이웃', I.chat], ['detective', '탐정모드', I.search]];
+const TABS = [['map', '지도', I.map], ['schedule', '급식 일정', I.clock], ['share', '함께', I.people], ['board', '이웃', I.chat], ['detective', '탐정모드', I.search]];
 function renderTabs() {
   $('#tabs').hidden = !!R.screen;
-  $('#tabs').innerHTML = TABS.map(([k, l, ic]) => `<button data-act="tab" data-v="${k}" ${R.tab === k && !R.screen ? 'aria-current="page"' : ''}>${ic}${l}</button>`).join('');
+  $('#tabs').innerHTML = TABS.map(([k, l, ic]) => `<button data-act="tab" data-v="${k}" ${R.tab === k && !R.screen ? 'aria-current="page"' : ''}>${ic}${l}${k === 'share' && SH.pending ? `<span class="nb" aria-label="받은 부탁 ${SH.pending}건">${SH.pending}</span>` : ''}</button>`).join('');
 }
 
 function scheduleScreen() {
@@ -412,6 +428,19 @@ function scheduleScreen() {
   </div>`;
 }
 
+function pointShareCard(p) {
+  const sh = ownedFor(p.id);
+  if (sh) return `<section class="card">
+      <h3 class="h-sec">함께 돌보기</h3>
+      <div class="store"><div class="ic on">${I.people}</div><div><b>${sh.member_count}명과 공유 중</b><span class="small muted">${lastFed(sh)}</span></div></div>
+      <div class="row"><button class="btn sm" style="flex:1" data-act="openShared" data-v="${sh.id}">공유 관리 · 부탁하기</button><button class="btn sm primary" style="flex:1" data-act="invite" data-v="${sh.id}">초대하기</button></div>
+    </section>`;
+  return `<section class="card">
+      <h3 class="h-sec">함께 돌보기</h3>
+      <div class="store"><div class="ic">${I.phone}</div><div><b>지금은 나만 봐요</b><span class="small muted">원본 사진은 이 휴대폰에만 있어요. 공유하면 작게 줄인 사진만 올라가요</span></div></div>
+      ${canShare() ? `<button class="btn sm primary" data-act="shareAsk" data-v="${p.id}">이 급식소 공유하고 이웃 초대하기</button>` : `<span class="small muted">로그인하면 이웃과 공유할 수 있어요</span>`}
+    </section>`;
+}
 function pointScreen() {
   const p = pt(R.pointId); if (!p) { R.screen = null; return scheduleScreen(); }
   return `<div class="navbar"><button class="back" data-act="back" aria-label="뒤로">${I.back}</button><h1>급식 포인트</h1>
@@ -419,7 +448,7 @@ function pointScreen() {
   <div class="pad">
     <div style="display:flex;flex-direction:column;gap:8px">
       <h2 class="h-display">${esc(p.name)}</h2>
-      <div class="row" style="flex-wrap:wrap;gap:6px"><span class="chip ghost">나만 보기</span><span class="chip ghost">${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}</span></div>
+      <div class="row" style="flex-wrap:wrap;gap:6px">${ownedFor(p.id) ? `<span class="chip">${ownedFor(p.id).member_count}명과 공유 중</span>` : '<span class="chip ghost">나만 보기</span>'}<span class="chip ghost">${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}</span></div>
     </div>
     <section style="display:flex;flex-direction:column;gap:10px">
       <div class="between"><h3 class="h-sec">먹으러 오는 고양이 ${p.cats.length ? p.cats.length + '마리' : ''}</h3><button class="linkbtn" data-act="addCat">+ 사진 추가</button></div>
@@ -428,11 +457,7 @@ function pointScreen() {
         <button class="addcat" data-act="addCat">${I.plus}사진 추가</button>
       </div>
     </section>
-    <section class="card">
-      <h3 class="h-sec">사진 저장 방식</h3>
-      <div class="store"><div class="ic">${I.phone}</div><div><b>원본 · 내 기기에만 저장</b><span class="small muted">앱 전용 저장 공간에 보관하고 서버에 올리지 않아요</span></div></div>
-      <div class="store"><div class="ic on">${I.lock}</div><div><b>공유본 · 암호화 업로드</b><span class="small muted">2차 업데이트에서 공유를 켤 때만 올라가요</span></div></div>
-    </section>
+    ${pointShareCard(p)}
     <section class="card" style="gap:0">
       <div class="between" style="padding-bottom:4px"><h3 class="h-sec">급식 시간 · 알람</h3><button class="linkbtn" data-act="addTime">+ 시간 추가</button></div>
       ${p.times.length ? p.times.slice().sort((a, b) => a.t.localeCompare(b.t)).map(t => `<div class="time">
@@ -447,9 +472,7 @@ function pointScreen() {
 
 function soonScreen(kind) {
   const C = {
-    share: { title: '공유', head: '원본은 내 폰에,<br>보여줄 것만 잠가서 보내요', body: '내가 초대한 사람에게만 급식 포인트와 고양이 사진을 보여주는 기능이에요. 서버를 연결하는 2차 업데이트에서 열려요.',
-      extra: `<div class="card"><div class="flow"><div class="st"><div class="box">${I.phone}</div>내 기기<span>원본 보관</span></div><span class="arr">${I.arrow}</span><div class="st"><div class="box on">${I.lock}</div>암호화<span>압축 · 위치정보 삭제</span></div><span class="arr">${I.arrow}</span><div class="st"><div class="box">${I.people}</div>공유 그룹<span>초대한 사람만</span></div></div></div>` },
-    board: { title: '이웃', head: '동네 이웃과<br>돌봄을 나눠요', body: '이웃 게시판과 여행·출장 때 급식 부탁하기 기능이에요. 2차 업데이트에서 열려요.', extra: '' },
+    board: { title: '이웃', head: '동네 이웃과<br>이야기를 나눠요', body: '우리 동네 집사들이 소식과 정보를 나누는 이웃 게시판이에요. 다음 업데이트에서 열려요. 급식소 공유와 밥 부탁은 ‘함께’ 탭에서 지금 바로 쓸 수 있어요.', extra: `<button class="btn primary" data-act="tab" data-v="share">함께 탭으로 가기</button>` },
     detective: { title: '탐정모드', head: '잃어버린 고양이를<br>급식 포인트로 찾아요', body: '유실 신고와 본인인증을 마친 보호자에게 유실 지점 50m, 100m 안의 급식 포인트를 순서대로 알려주는 기능이에요. 3차 업데이트에서 열려요.', extra: '' }
   }[kind];
   return `<header class="topbar"><div><div class="brand">${C.title}</div></div></header>
@@ -466,9 +489,12 @@ function render() {
   } else {
     let html;
     if (R.screen === 'point') html = pointScreen();
+    else if (R.screen === 'shared') html = sharedScreen();
     else if (R.tab === 'schedule') html = scheduleScreen();
+    else if (R.tab === 'share') html = shareScreen();
     else html = soonScreen(R.tab);
     $('#view').innerHTML = html;
+    setTimeout(hydratePhotos, 0);
   }
   renderTabs();
 }
@@ -506,6 +532,330 @@ function settingsSheet() {
     <p class="small muted" style="margin:0">냥's 키친 ${esc(APP_VERSION)} · 데이터와 사진은 이 휴대폰에만 저장돼요.</p>`);
 }
 
+/* ---------- 이웃과 함께: 급식소 공유 · 초대 · 밥 부탁 · 밥 줬어요 ----------
+   공유하기로 고른 급식소만 서버에 올린다. 원본 사진은 휴대폰에 두고, 480px로 줄인 사진(위치 정보 없음)만 올린다. */
+const AU = () => window.NK_AUTH;
+const SITE = 'https://nyangs-kitchen.com';
+const SH = { loaded: false, loading: false, error: '', owned: [], joined: [], pending: 0 };
+const photoCache = {};
+const canShare = () => !!(AU() && AU().configured && AU().user());
+const ownedFor = nid => SH.owned.find(s => s.nid === nid);
+const shareById = id => SH.owned.concat(SH.joined).find(s => s.id === Number(id));
+const nowSec = () => Math.floor(Date.now() / 1000);
+function fmtAgo(ts) {
+  const d = nowSec() - ts;
+  if (d < 60) return '방금';
+  if (d < 3600) return Math.floor(d / 60) + '분 전';
+  if (d < 86400) return Math.floor(d / 3600) + '시간 전';
+  const t = new Date(ts * 1000); return `${t.getMonth() + 1}/${t.getDate()}`;
+}
+const fmtDate = d => { const [, m, dd] = String(d).split('-'); return `${+m}/${+dd}`; };
+const reqRange = q => q.start === q.end ? fmtDate(q.start) : `${fmtDate(q.start)} ~ ${fmtDate(q.end)}`;
+const REQ_STATUS = { pending: '답을 기다려요', accepted: '맡아주기로 했어요', declined: '어렵다고 했어요', cancelled: '취소됐어요' };
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const lastFed = s => s.logs && s.logs[0] ? `${fmtAgo(s.logs[0].at)} ${esc(s.logs[0].by)} 님이 밥 줬어요` : '아직 밥 기록이 없어요';
+
+async function loadShares(quiet) {
+  if (!canShare()) { SH.loaded = true; SH.owned = []; SH.joined = []; SH.pending = 0; return; }
+  if (SH.loading) return;
+  SH.loading = true;
+  const r = await AU().share('list', null, 'GET');
+  SH.loading = false;
+  if (r.error) { SH.error = r.message || '공유 정보를 불러오지 못했어요'; SH.loaded = true; if (!quiet) toast(SH.error); }
+  else { SH.error = ''; SH.owned = r.owned || []; SH.joined = r.joined || []; SH.pending = r.pending || 0; SH.loaded = true; }
+  render(); syncOverlays();
+}
+
+// 원본 사진을 480px JPEG로 줄인다 (캔버스로 다시 그리면 사진 속 위치 정보도 빠진다)
+function smallJpeg(src) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 480 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      try { res(c.toDataURL('image/jpeg', 0.72)); } catch (e) { res(null); }
+    };
+    img.onerror = () => res(null);
+    img.src = src;
+  });
+}
+async function sharePayload(p) {
+  const server = ownedFor(p.id);
+  const cats = [];
+  for (const c of p.cats) {
+    const e = { id: c.id, name: c.name };
+    const onServer = server && server.cats.find(x => x.id === c.id && x.photo);
+    if (onServer) e.keep = true;
+    else { const s = photoSrc(c); if (s) { const j = await smallJpeg(s); if (j) e.photo = j; } }
+    cats.push(e);
+  }
+  return { nid: p.id, name: p.name, lat: p.lat, lng: p.lng, memo: p.memo || '', times: p.times.map(t => t.t), cats };
+}
+async function pushShare(p, quiet) {
+  const r = await AU().share('upsert', await sharePayload(p));
+  if (r.error) { if (!quiet) toast(r.message || '공유하지 못했어요'); return null; }
+  const i = SH.owned.findIndex(s => s.id === r.share.id);
+  if (i >= 0) SH.owned[i] = r.share; else SH.owned.push(r.share);
+  return r.share;
+}
+const syncTimers = {};
+function syncShareSoon(p) {
+  if (!p || !canShare() || !ownedFor(p.id)) return;
+  clearTimeout(syncTimers[p.id]);
+  syncTimers[p.id] = setTimeout(() => pushShare(p, true), 800);
+}
+function hydratePhotos() {
+  if (!AU()) return;
+  document.querySelectorAll('[data-photo]').forEach(async el => {
+    const k = el.dataset.photo; const [sid, f] = k.split('/'); if (!f) return;
+    photoCache[k] = photoCache[k] || AU().sharePhoto(sid, f);
+    const u = await photoCache[k];
+    if (u) { el.style.backgroundImage = `url('${u}')`; el.style.backgroundSize = 'cover'; el.style.backgroundPosition = 'center'; }
+  });
+}
+
+function shareScreen() {
+  const head = `<header class="topbar"><div><div class="brand">함께 돌보기</div><div class="where">급식소를 이웃과 나누고, 밥 주기를 부탁해요</div></div></header>`;
+  if (!AU() || !AU().configured) return head + `<div class="pad"><div class="empty">서버가 연결되지 않은 테스트 버전이라 공유를 쓸 수 없어요.</div></div>`;
+  if (!AU().user()) return head + `<div class="pad"><div class="empty">로그인하면 급식소를 공유하고 밥 주기를 부탁할 수 있어요.</div><button class="btn primary" data-act="logout">로그인하기</button></div>`;
+  if (!SH.loaded) { loadShares(true); return head + `<div class="pad"><div class="empty">불러오는 중…</div></div>`; }
+
+  const forMe = [];
+  SH.joined.forEach(s => s.requests.forEach(q => { if (q.status === 'pending' && q.for_me) forMe.push({ s, q }); }));
+  const unshared = S.points.filter(p => !ownedFor(p.id));
+  const reqBox = forMe.length ? `<section style="display:flex;flex-direction:column;gap:10px"><h3 class="h-sec">받은 부탁 ${forMe.length}건</h3>
+    ${forMe.map(({ s, q }) => `<div class="card req">
+      <div><b>${esc(s.owner_name)} 님이 밥 주기를 부탁했어요</b><div class="small muted">${esc(s.name)} · ${reqRange(q)}${q.note ? ` · “${esc(q.note)}”` : ''}</div></div>
+      <div class="row"><button class="btn sm" style="flex:1" data-act="reqRespond" data-v="${q.id}" data-a="0">어려워요</button><button class="btn sm primary" style="flex:1" data-act="reqRespond" data-v="${q.id}" data-a="1">맡을게요</button></div></div>`).join('')}</section>` : '';
+
+  const ownedList = SH.owned.length ? `<div class="list">${SH.owned.map(s => {
+      const open = s.requests.filter(q => q.status === 'pending' || q.status === 'accepted');
+      return `<button class="li sli" data-act="openShared" data-v="${s.id}"><div class="sl"><b>${esc(s.name)}</b><span class="small muted">${s.member_count}명과 공유${open.length ? ` · 부탁 ${open.length}건` : ''} · ${lastFed(s)}</span></div>${I.back.replace('m15 18-6-6 6-6', 'm9 18 6-6-6-6')}</button>`;
+    }).join('')}</div>` : `<div class="empty" style="padding:14px 8px">아직 공유한 급식소가 없어요</div>`;
+  const joinedList = SH.joined.length ? `<div class="list">${SH.joined.map(s => `<button class="li sli" data-act="openShared" data-v="${s.id}"><div class="sl"><b>${esc(s.name)}</b><span class="small muted">${esc(s.owner_name)} 님의 급식소 · ${lastFed(s)}</span></div>${I.back.replace('m15 18-6-6 6-6', 'm9 18 6-6-6-6')}</button>`).join('')}</div>`
+    : `<div class="empty" style="padding:14px 8px">초대 코드를 받으면 이웃의 급식소를 함께 볼 수 있어요</div>`;
+
+  return head + `<div class="pad">
+    ${SH.error ? `<div class="card"><span class="small" style="color:var(--warn-ink)">${esc(SH.error)}</span><button class="btn sm" data-act="reloadShares">다시 불러오기</button></div>` : ''}
+    ${reqBox}
+    <section style="display:flex;flex-direction:column;gap:10px">
+      <div class="between"><h3 class="h-sec">내가 공유한 급식소</h3>${unshared.length ? `<button class="linkbtn" data-act="sharePick">+ 공유하기</button>` : ''}</div>
+      ${ownedList}
+      ${!S.points.length ? `<p class="small muted" style="margin:0">지도에서 급식소를 먼저 등록해 주세요.</p>` : ''}
+    </section>
+    <section style="display:flex;flex-direction:column;gap:10px">
+      <div class="between"><h3 class="h-sec">공유받은 급식소</h3><button class="linkbtn" data-act="joinAsk">+ 초대 코드 입력</button></div>
+      ${joinedList}
+    </section>
+    <div class="store"><div class="ic">${I.lock}</div><div><b>공유한 사람에게만 보여요</b><span class="small muted">급식소 위치·이름·밥 시간·고양이 이름과 작게 줄인 사진만 보여요. 원본 사진은 이 휴대폰에만 있어요.</span></div></div>
+  </div>`;
+}
+
+function sharedScreen() {
+  const s = shareById(R.shareId);
+  if (!s) { R.screen = null; return shareScreen(); }
+  const reqs = s.requests.filter(q => s.owner || q.status !== 'cancelled');
+  const reqHtml = reqs.length ? reqs.map(q => `<div class="time" style="min-height:64px">
+      <div style="display:flex;flex-direction:column;min-width:0"><b>${reqRange(q)} · ${q.helper ? esc(q.helper) + ' 님' : '누구든'}</b>
+        <span class="small ${q.status === 'accepted' ? '' : 'muted'}" style="${q.status === 'accepted' ? 'color:var(--accent);font-weight:600' : ''}">${REQ_STATUS[q.status] || q.status}${q.note ? ` · “${esc(q.note)}”` : ''}</span></div>
+      ${s.owner && (q.status === 'pending' || q.status === 'accepted') ? `<button class="btn sm" data-act="reqCancel" data-v="${q.id}">취소</button>` : ''}
+      ${!s.owner && q.status === 'pending' && q.for_me ? `<div class="row"><button class="btn sm" data-act="reqRespond" data-v="${q.id}" data-a="0">어려워요</button><button class="btn sm primary" data-act="reqRespond" data-v="${q.id}" data-a="1">맡을게요</button></div>` : ''}
+    </div>`).join('') : `<div class="empty" style="padding:12px 0">${s.owner ? '여행이나 출장 갈 때 밥 주기를 부탁해 보세요' : '받은 부탁이 없어요'}</div>`;
+  const members = s.owner ? `<section class="card" style="gap:0">
+      <div class="between" style="padding-bottom:4px"><h3 class="h-sec">함께 보는 사람 ${s.member_count}명</h3><button class="linkbtn" data-act="invite" data-v="${s.id}">+ 초대하기</button></div>
+      ${s.members.length ? s.members.map(m => `<div class="time"><div style="display:flex;flex-direction:column"><b>${esc(m.nickname)}</b><span class="small muted">${fmtAgo(m.joined_at)} 참여</span></div><button class="btn sm" data-act="kickAsk" data-v="${m.id}" data-s="${s.id}" data-n="${esc(m.nickname)}">내보내기</button></div>`).join('')
+        : `<div class="empty" style="padding:12px 0">초대 코드를 보내면 이웃이 참여할 수 있어요</div>`}
+    </section>` : '';
+  return `<div class="navbar"><button class="back" data-act="back" aria-label="뒤로">${I.back}</button><h1>${s.owner ? '내가 공유한 급식소' : '공유받은 급식소'}</h1>
+    <button class="back" data-act="shareMenu" data-v="${s.id}" aria-label="공유 메뉴">${I.more}</button></div>
+  <div class="pad">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <h2 class="h-display">${esc(s.name)}</h2>
+      <div class="row" style="flex-wrap:wrap;gap:6px"><span class="chip">${s.owner ? `${s.member_count}명과 공유 중` : `${esc(s.owner_name)} 님의 급식소`}</span>${s.times.map(t => `<span class="chip ghost">${t}</span>`).join('')}</div>
+      ${s.memo ? `<p class="muted" style="margin:0">${esc(s.memo)}</p>` : ''}
+    </div>
+    ${s.cats.length ? `<section style="display:flex;flex-direction:column;gap:10px"><h3 class="h-sec">찾아오는 고양이 ${s.cats.length}마리</h3>
+      <div class="cats">${s.cats.map((c, i) => `<div class="cat"><div class="ph" data-photo="${c.photo ? s.id + '/' + c.photo : ''}" style="background:${CAT_COLORS[i % CAT_COLORS.length]}"></div><b>${esc(c.name)}</b></div>`).join('')}</div></section>` : ''}
+    <section class="card" style="gap:0">
+      <div class="between" style="padding-bottom:4px"><h3 class="h-sec">밥 부탁</h3>${s.owner && s.member_count ? `<button class="linkbtn" data-act="reqAsk" data-v="${s.id}">+ 부탁하기</button>` : ''}</div>
+      ${reqHtml}
+    </section>
+    ${members}
+    <section class="card" style="gap:0">
+      <h3 class="h-sec" style="padding-bottom:4px">밥 준 기록</h3>
+      ${s.logs.length ? s.logs.slice(0, 10).map(l => `<div class="time" style="min-height:48px"><span><b>${esc(l.by)}</b>${l.mine ? ' (나)' : ''}${l.note ? ` · ${esc(l.note)}` : ''}</span><span class="small muted">${fmtAgo(l.at)}</span></div>`).join('')
+        : `<div class="empty" style="padding:12px 0">‘밥 줬어요’를 누르면 함께 보는 사람 모두에게 기록이 보여요</div>`}
+    </section>
+  </div>
+  <div class="actions"><button class="btn" data-act="sharedOnMap" data-v="${s.id}">지도에서 보기</button><button class="btn primary" data-act="fedAsk" data-v="${s.id}">밥 줬어요</button></div>`;
+}
+
+const SA = {
+  reloadShares() { SH.loaded = false; render(); },
+  openShared(v) { R.shareId = Number(v); R.screen = 'shared'; render(); $('#view').scrollTop = 0; loadShares(true); },
+  sharedOnMap(v) { const s = shareById(v); if (!s) return; R.screen = null; R.tab = 'map'; S.filters.shared = true; save(); render(); syncOverlays(); mapCenterTo(s.lat, s.lng); },
+  sharePick() {
+    const list = S.points.filter(p => !ownedFor(p.id));
+    sheet(`<h2>어느 급식소를 공유할까요?</h2>
+      <div class="list">${list.map(p => `<button class="li sli" data-act="shareAsk" data-v="${p.id}"><div class="sl"><b>${esc(p.name)}</b><span class="small muted">고양이 ${p.cats.length}마리 · 밥 시간 ${p.times.length}개</span></div></button>`).join('')}</div>`);
+  },
+  shareAsk(v) {
+    const p = pt(v); if (!p) return;
+    if (!canShare()) { toast('로그인해야 공유할 수 있어요'); return; }
+    sheet(`<h2>${esc(p.name)} 급식소를 공유할까요?</h2>
+      <p class="muted" style="margin:0;line-height:1.6">초대 코드를 받은 사람만 볼 수 있어요. 언제든 공유를 끝내면 서버에서 바로 지워져요.</p>
+      <div class="card" style="gap:8px">
+        <div class="row">${I.ok}<span>급식소 위치와 이름, 밥 시간</span></div>
+        <div class="row">${I.ok}<span>고양이 이름과 <b>작게 줄인 사진</b> (사진 속 위치 정보는 빼요)</span></div>
+        <div class="row muted">${I.lock}<span>원본 사진과 공유하지 않은 급식소는 이 휴대폰에만</span></div>
+      </div>
+      <button class="btn primary" data-act="shareStart" data-v="${p.id}">공유 시작하기</button><button class="btn" data-act="closeSheet">취소</button>`);
+  },
+  async shareStart(v, el) {
+    const p = pt(v); if (!p) return;
+    el.disabled = true; el.textContent = '사진을 줄여서 올리는 중…';
+    const s = await pushShare(p);
+    if (!s) { el.disabled = false; el.textContent = '공유 시작하기'; return; }
+    render();
+    await SA.invite(s.id);
+  },
+  async invite(v) {
+    const s = shareById(v); if (!s) return;
+    const r = await AU().share('invite', { share_id: s.id });
+    if (r.error) { toast(r.message); return; }
+    const days = Math.max(1, Math.round((r.expires_at - nowSec()) / 86400));
+    sheet(`<h2>초대 코드</h2>
+      <div class="code" aria-label="초대 코드">${esc(r.code.slice(0, 3))}<span></span>${esc(r.code.slice(3))}</div>
+      <p class="small muted" style="margin:0;text-align:center">${days}일 동안 쓸 수 있어요 · 여러 명에게 보내도 돼요</p>
+      <button class="btn primary" data-act="sendInvite" data-v="${s.id}" data-c="${esc(r.code)}">카톡·문자로 보내기</button>
+      <button class="btn" data-act="copyInvite" data-v="${s.id}" data-c="${esc(r.code)}">초대 문구 복사</button>`);
+  },
+  async sendInvite(v, el) {
+    const s = shareById(v), code = el.dataset.c;
+    const text = inviteText(s, code);
+    if (isNative && P.Share) { try { await P.Share.share({ title: "냥's 키친 초대", text, dialogTitle: '초대 보내기' }); return; } catch (e) { if (/cancel/i.test(String(e && e.message))) return; } }
+    if (navigator.share) { try { await navigator.share({ text }); return; } catch (e) { return; } }
+    SA.copyInvite(v, el);
+  },
+  async copyInvite(v, el) {
+    const s = shareById(v), text = inviteText(s, el.dataset.c);
+    try { await navigator.clipboard.writeText(text); toast('복사했어요. 카톡이나 문자에 붙여넣으세요'); }
+    catch (e) { toast(`초대 코드: ${el.dataset.c}`); }
+  },
+  joinAsk(code) {
+    if (!canShare()) { toast('로그인해야 참여할 수 있어요'); return; }
+    sheet(`<h2>초대 코드 입력</h2><p class="muted" style="margin:0">이웃에게 받은 6자리 코드를 넣어주세요.</p>
+      <div class="field"><label for="joinCode">초대 코드</label><input id="joinCode" value="${esc(code || '')}" placeholder="예: K7P-Q2M" maxlength="9" autocapitalize="characters" autocomplete="off" spellcheck="false" style="font-size:22px;letter-spacing:4px;text-transform:uppercase"></div>
+      <button class="btn primary" data-act="joinGo">참여하기</button>`);
+    if (!code) setTimeout(() => { const i = $('#joinCode'); if (i) i.focus(); }, 250);
+  },
+  async joinGo(v, el) {
+    const code = ($('#joinCode').value || '').replace(/[^0-9a-z]/gi, '').toUpperCase();
+    if (code.length !== 6) { toast('코드 6자리를 확인해 주세요'); return; }
+    el.disabled = true;
+    const r = await AU().share('join', { code });
+    el.disabled = false;
+    if (r.error) { toast(r.message); return; }
+    const i = SH.joined.findIndex(s => s.id === r.share.id);
+    if (i >= 0) SH.joined[i] = r.share; else SH.joined.push(r.share);
+    closeSheet(); R.tab = 'share'; SA.openShared(r.share.id);
+    toast(`${r.share.owner_name} 님의 급식소에 참여했어요`);
+  },
+  fedAsk(v) {
+    const s = shareById(v); if (!s) return;
+    sheet(`<h2>${esc(s.name)}에 밥 줬어요</h2>
+      <div class="field"><label for="fedNote">한마디 (선택)</label><input id="fedNote" maxlength="60" placeholder="예: 치즈가 다 먹고 갔어요"></div>
+      <button class="btn primary" data-act="fedGo" data-v="${s.id}">기록하기</button>`);
+  },
+  async fedGo(v, el) {
+    el.disabled = true;
+    const r = await AU().share('fed', { share_id: Number(v), note: ($('#fedNote').value || '').trim() });
+    if (r.error) { el.disabled = false; toast(r.message); return; }
+    closeSheet(); toast('기록했어요. 함께 보는 사람 모두에게 보여요'); await loadShares(true);
+  },
+  reqAsk(v) {
+    const s = shareById(v); if (!s) return;
+    const t = new Date(), e = new Date(Date.now() + 2 * 86400000);
+    sheet(`<h2>밥 주기 부탁하기</h2>
+      <div class="row"><div class="field" style="flex:1"><label for="rqS">시작</label><input id="rqS" type="date" value="${ymd(t)}" min="${ymd(t)}"></div>
+        <div class="field" style="flex:1"><label for="rqE">끝</label><input id="rqE" type="date" value="${ymd(e)}" min="${ymd(t)}"></div></div>
+      <div class="field"><label for="rqH">누구에게</label><select id="rqH"><option value="0">함께 보는 누구든 (먼저 수락한 사람)</option>${s.members.map(m => `<option value="${m.id}">${esc(m.nickname)}</option>`).join('')}</select></div>
+      <div class="field"><label for="rqN">부탁 메모 (선택)</label><input id="rqN" maxlength="100" placeholder="예: 출장이라 저녁 한 번만 부탁해요"></div>
+      <button class="btn primary" data-act="reqSend" data-v="${s.id}">부탁 보내기</button>`);
+  },
+  async reqSend(v, el) {
+    const start = $('#rqS').value, end = $('#rqE').value;
+    if (!start || !end || end < start) { toast('날짜를 확인해 주세요'); return; }
+    el.disabled = true;
+    const r = await AU().share('request', { share_id: Number(v), helper_id: Number($('#rqH').value || 0), start, end, note: ($('#rqN').value || '').trim() });
+    el.disabled = false;
+    if (r.error) { toast(r.message); return; }
+    closeSheet(); toast('부탁을 보냈어요. 상대가 앱을 열면 보여요'); await loadShares(true);
+  },
+  async reqRespond(v, el) {
+    const accept = el.dataset.a === '1';
+    const r = await AU().share('respond', { id: Number(v), accept });
+    if (r.error) { toast(r.message); await loadShares(true); return; }
+    toast(accept ? '맡아주셔서 고마워요!' : '어렵다고 전했어요'); await loadShares(true);
+  },
+  async reqCancel(v) {
+    const r = await AU().share('cancel', { id: Number(v) });
+    if (r.error) { toast(r.message); return; }
+    toast('부탁을 취소했어요'); await loadShares(true);
+  },
+  kickAsk(v, el) {
+    sheet(`<h2>${esc(el.dataset.n)} 님을 내보낼까요?</h2><p class="muted" style="margin:0">이 급식소를 더 이상 볼 수 없어요. 다시 초대하면 참여할 수 있어요.</p>
+      <button class="btn danger" data-act="kickGo" data-v="${v}" data-s="${el.dataset.s}">내보내기</button><button class="btn" data-act="closeSheet">취소</button>`);
+  },
+  async kickGo(v, el) {
+    const r = await AU().share('kick', { share_id: Number(el.dataset.s), user_id: Number(v) });
+    if (r.error) { toast(r.message); return; }
+    closeSheet(); toast('내보냈어요'); await loadShares(true);
+  },
+  shareMenu(v) {
+    const s = shareById(v); if (!s) return;
+    sheet(s.owner
+      ? `<h2>공유 관리</h2><button class="btn" data-act="invite" data-v="${s.id}">초대 코드 다시 보기</button>
+         <button class="btn danger" data-act="endShareAsk" data-v="${s.id}">공유 끝내기</button>`
+      : `<h2>공유받은 급식소</h2><button class="btn danger" data-act="leaveShare" data-v="${s.id}">이 급식소에서 나가기</button><button class="btn" data-act="closeSheet">닫기</button>`);
+  },
+  endShareAsk(v) {
+    const s = shareById(v);
+    sheet(`<h2>공유를 끝낼까요?</h2><p class="muted" style="margin:0;line-height:1.6">${s.member_count}명이 더 이상 볼 수 없고, 서버에 올린 정보와 작은 사진, 부탁·밥 기록이 모두 지워져요. 이 휴대폰의 급식소와 원본 사진은 그대로예요.</p>
+      <button class="btn danger" data-act="endShare" data-v="${v}">공유 끝내기</button><button class="btn" data-act="closeSheet">취소</button>`);
+  },
+  async endShare(v) {
+    const r = await AU().share('delete', { share_id: Number(v) });
+    if (r.error) { toast(r.message); return; }
+    SH.owned = SH.owned.filter(s => s.id !== Number(v));
+    closeSheet(); R.screen = null; render(); toast('공유를 끝냈어요');
+  },
+  async leaveShare(v) {
+    const r = await AU().share('leave', { share_id: Number(v) });
+    if (r.error) { toast(r.message); return; }
+    SH.joined = SH.joined.filter(s => s.id !== Number(v));
+    closeSheet(); R.screen = null; render(); syncOverlays(); toast('나왔어요');
+  }
+};
+function inviteText(s, code) {
+  return `냥's 키친에서 '${s ? s.name : '급식소'}'를 함께 돌봐요 🐾\n초대 코드: ${code}\n앱에서 열기: ${SITE}/join.html?c=${code}`;
+}
+// 초대 링크(com.nyangskitchen.app://join?c=CODE)로 앱이 열렸을 때
+let pendingJoin = null;
+async function handleJoinLink(url) {
+  if (!url || !/^com\.nyangskitchen\.app:\/\/join/i.test(url)) return;
+  let code = '';
+  try { code = new URL(url).searchParams.get('c') || ''; } catch (e) {}
+  pendingJoin = code;
+  await introDone;
+  if (AU()) await AU().ready;
+  if (pendingJoin === null) return;
+  const c = pendingJoin; pendingJoin = null;
+  A.tab('share'); SA.joinAsk(c);
+}
+
 /* ---------- actions ---------- */
 const A = {
   tab(v) { R.tab = v; R.screen = null; R.adding = false; render(); $('#view').scrollTop = 0; },
@@ -513,7 +863,7 @@ const A = {
   scrim(v, el, e) { if (e.target === el) closeSheet(); },
   closeSheet() { closeSheet(); },
   settings() { settingsSheet(); },
-  filter(v) { S.filters[v] = !S.filters[v]; save(); syncOverlays(); renderMapUi(); },
+  filter(v) { S.filters[v] = S.filters[v] === false ? true : !S.filters[v]; save(); syncOverlays(); renderMapUi(); },
   locate() { toast('내 위치를 찾는 중…'); locate(false); },
   startAdd() { R.adding = true; R.sel = null; syncOverlays(); renderMapUi(); },
   cancelAdd() { R.adding = false; renderMapUi(); },
@@ -627,6 +977,23 @@ const A = {
   }
 };
 
+Object.assign(A, SA);
+// 공유 중인 급식소를 고치면 공유본도 따라 바뀐다
+['renamePoint', 'saveTime', 'delTime', 'saveCat', 'renameCat', 'delCat'].forEach(k => {
+  const f = A[k];
+  A[k] = async (...a) => { const r = await f(...a); syncShareSoon(pt(R.pointId)); return r; };
+});
+{
+  const delPoint = A.delPoint;
+  A.delPoint = async (...a) => {
+    const sh = ownedFor(R.pointId);
+    if (sh) { const r = await AU().share('delete', { share_id: sh.id }); if (!r.error) SH.owned = SH.owned.filter(x => x.id !== sh.id); }
+    return delPoint(...a);
+  };
+  const open = A.open;
+  A.open = v => { open(v); if (canShare() && !SH.loaded) loadShares(true); };
+}
+
 /* ---------- events ---------- */
 const app = $('#app');
 app.addEventListener('click', e => {
@@ -653,7 +1020,9 @@ async function setupNative() {
       if (R.tab !== 'map') { A.tab('map'); return; }
       P.App.exitApp();
     });
-    P.App.addListener('resume', () => render());
+    P.App.addListener('resume', () => { render(); loadShares(true); });
+    P.App.addListener('appUrlOpen', ev => handleJoinLink(ev && ev.url));
+    try { const l = await P.App.getLaunchUrl(); if (l && l.url) handleJoinLink(l.url); } catch (e) {}
   }
   if (LN) {
     LN.addListener('localNotificationActionPerformed', ev => {
@@ -697,6 +1066,15 @@ const introDone = new Promise(res => {
 $('#bellBtn').innerHTML = I.bell;
 $('#setBtn').innerHTML = I.gear;
 render();
+// 로그인하면 공유 정보를 불러오고, 받은 부탁이 있으면 알려준다
+(async () => {
+  await introDone;
+  if (!AU()) return;
+  AU().onChange(u => { SH.loaded = false; SH.owned = []; SH.joined = []; SH.pending = 0; if (u) loadShares(true); else { render(); syncOverlays(); } });
+  await AU().ready;
+  await loadShares(true);
+  if (SH.pending) toast(`받은 밥 부탁이 ${SH.pending}건 있어요 · 함께 탭에서 확인해 주세요`);
+})();
 setupLongPress();
 loadMap();
 setupNative();

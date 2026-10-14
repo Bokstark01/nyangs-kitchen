@@ -39,3 +39,59 @@ CREATE TABLE IF NOT EXISTS nk_attempts (
   at     INT UNSIGNED NOT NULL,
   KEY idx_ip (ip, action, at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ===== 이웃과 함께 (급식소 공유 · 밥 부탁) =====
+-- 공유하기로 고른 급식소만 여기 올라와요. 공유하지 않은 급식소는 휴대폰에만 있어요.
+CREATE TABLE IF NOT EXISTS nk_shares (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  owner_id   INT UNSIGNED NOT NULL,
+  nid        VARCHAR(40)  NOT NULL,                -- 주인 휴대폰 안의 급식소 번호
+  name       VARCHAR(60)  NOT NULL,
+  lat        DOUBLE       NOT NULL,
+  lng        DOUBLE       NOT NULL,
+  memo       VARCHAR(300) NOT NULL DEFAULT '',
+  times      TEXT         NOT NULL,                -- ["07:00","19:00"]
+  cats       TEXT         NOT NULL,                -- [{"id":"..","name":"치즈","photo":"abc.jpg"}]
+  created_at INT UNSIGNED NOT NULL,
+  updated_at INT UNSIGNED NOT NULL,
+  UNIQUE KEY uq_owner_nid (owner_id, nid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS nk_share_members (
+  share_id  INT UNSIGNED NOT NULL,
+  user_id   INT UNSIGNED NOT NULL,
+  joined_at INT UNSIGNED NOT NULL,
+  PRIMARY KEY (share_id, user_id),
+  KEY idx_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS nk_invites (
+  code       CHAR(8)      NOT NULL PRIMARY KEY,
+  share_id   INT UNSIGNED NOT NULL,
+  created_at INT UNSIGNED NOT NULL,
+  expires_at INT UNSIGNED NOT NULL,
+  KEY idx_share (share_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS nk_requests (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  share_id   INT UNSIGNED NOT NULL,
+  owner_id   INT UNSIGNED NOT NULL,
+  helper_id  INT UNSIGNED NULL,                    -- 비어 있으면 공유받은 누구나 수락 가능
+  start_date CHAR(10)     NOT NULL,
+  end_date   CHAR(10)     NOT NULL,
+  note       VARCHAR(300) NOT NULL DEFAULT '',
+  status     VARCHAR(12)  NOT NULL,                -- pending | accepted | declined | cancelled
+  created_at INT UNSIGNED NOT NULL,
+  updated_at INT UNSIGNED NOT NULL,
+  KEY idx_share (share_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS nk_feed_logs (
+  id       BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  share_id INT UNSIGNED NOT NULL,
+  user_id  INT UNSIGNED NOT NULL,
+  fed_at   INT UNSIGNED NOT NULL,
+  note     VARCHAR(200) NOT NULL DEFAULT '',
+  KEY idx_share (share_id, fed_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

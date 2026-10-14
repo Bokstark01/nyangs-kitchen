@@ -201,3 +201,19 @@ button{cursor:pointer}
 .auth-link{border:none;background:none;color:var(--muted);font-size:14px;text-decoration:underline;min-height:44px;align-self:center}
 .auth-notice{margin:0;padding:10px 12px;border-radius:10px;background:var(--accent-soft);color:var(--accent-soft-ink);font-size:14px;line-height:1.5}
 .auth-notice.err{background:var(--warn-soft);color:var(--warn-ink)}
+
+/* 이웃과 함께 */
+.tabs button{position:relative}
+.tabs .nb{position:absolute;top:6px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--warn);color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center}
+.kpin.shared .b{background:#6B4FA0;width:40px;height:40px}
+.kpin.shared .l{color:#4A3474}
+.sli{width:100%;border:none;background:none;padding:10px 0;text-align:left;color:inherit}
+.sli svg{flex-shrink:0;color:var(--muted)}
+.sl{display:flex;flex-direction:column;gap:3px;min-width:0}
+.sl b{font-size:15px}
+.sl .small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.req{border:1.5px solid var(--accent);gap:12px}
+.req b{font-size:15px}
+.code{font-family:var(--display);font-size:44px;letter-spacing:6px;text-align:center;color:var(--accent);background:var(--surface);border-radius:16px;padding:14px 8px;display:flex;justify-content:center;align-items:center;gap:6px}
+.code span{width:14px;height:3px;border-radius:2px;background:var(--line)}
+.time .btn,.li .btn{flex-shrink:0;white-space:nowrap}

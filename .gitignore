@@ -3,3 +3,4 @@ node_modules/
 *.apk
 www/vendor/
 server/config.php
+server/storage/

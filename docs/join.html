@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>냥's 키친 급식소 초대</title>
+<meta name="robots" content="noindex">
+<meta property="og:title" content="냥's 키친 급식소 초대">
+<meta property="og:description" content="이웃이 길고양이 급식소를 함께 돌보자고 초대했어요.">
+<meta name="theme-color" content="#1F4A36">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{--deep:#1F4A36;--cream:#F4ECD6;--gold:#F2B544}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:var(--deep);color:var(--cream);font:16px/1.65 'Noto Sans KR',system-ui,sans-serif;display:grid;place-items:center;padding:28px 16px}
+  main{width:100%;max-width:420px;text-align:center}
+  svg{width:110px;height:110px}
+  h1{font:400 32px/1.25 'Jua','Noto Sans KR',sans-serif;margin:8px 0 6px}
+  p{margin:0 0 18px;opacity:.9}
+  .code{font:400 46px/1 'Jua',monospace;letter-spacing:8px;background:rgba(244,236,214,.1);border:1px solid rgba(244,236,214,.25);border-radius:18px;padding:18px 8px;margin:6px 0 10px}
+  .btn{display:block;width:100%;padding:16px;border-radius:16px;font-weight:700;font-size:17px;text-decoration:none;margin-top:12px;border:0;cursor:pointer;font-family:inherit}
+  .primary{background:var(--cream);color:var(--deep)}
+  .ghost{background:transparent;color:var(--cream);border:1.5px solid rgba(244,236,214,.45)}
+  ol{text-align:left;margin:22px 0 0;padding:16px 16px 16px 34px;background:rgba(0,0,0,.15);border-radius:16px;font-size:14.5px}
+  li{margin:4px 0}
+  small{display:block;margin-top:22px;opacity:.6}
+  a.plain{color:var(--cream)}
+</style>
+</head>
+<body>
+<main>
+  <svg viewBox="0 0 240 240" aria-hidden="true"><path d="M58 98 L66 26 L114 66 Z" fill="#F4ECD6"/><path d="M182 98 L174 26 L126 66 Z" fill="#F4ECD6"/><path d="M70 84 L74 44 L101 66 Z" fill="#E9A58A"/><path d="M170 84 L166 44 L139 66 Z" fill="#E9A58A"/><ellipse cx="120" cy="120" rx="76" ry="66" fill="#F4ECD6"/><path d="M84 114 q13 -14 26 0 M130 114 q13 -14 26 0" stroke="#1F4A36" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M106 140 q7 9 14 0 q7 9 14 0" stroke="#1F4A36" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M113 127 h14 l-7 8 z" fill="#D9826B"/></svg>
+  <h1>급식소에 초대받았어요</h1>
+  <p>이웃이 길고양이 급식소를 함께 돌보자고 초대했어요.</p>
+  <div class="code" id="code">······</div>
+  <a class="btn primary" id="open" href="#">냥's 키친 앱에서 열기</a>
+  <button class="btn ghost" id="copy" type="button">코드 복사</button>
+  <ol>
+    <li>냥's 키친 앱을 설치하고 로그인해요.</li>
+    <li>아래 <b>함께</b> 탭에서 <b>+ 초대 코드 입력</b>을 눌러요.</li>
+    <li>위 코드 6자리를 넣으면 끝! 코드는 7일 동안 쓸 수 있어요.</li>
+  </ol>
+  <small><a class="plain" href="/">냥's 키친 소개</a> · <a class="plain" href="privacy.html">개인정보처리방침</a></small>
+</main>
+<script>
+  (function () {
+    var c = (new URLSearchParams(location.search).get('c') || '').replace(/[^0-9a-z]/gi, '').toUpperCase().slice(0, 6);
+    var codeEl = document.getElementById('code'), open = document.getElementById('open'), copy = document.getElementById('copy');
+    if (!c) { codeEl.textContent = '코드 없음'; open.style.display = 'none'; copy.style.display = 'none'; return; }
+    codeEl.textContent = c;
+    var app = 'com.nyangskitchen.app://join?c=' + c;
+    var android = /android/i.test(navigator.userAgent);
+    open.href = android
+      ? 'intent://join?c=' + c + '#Intent;scheme=com.nyangskitchen.app;package=com.nyangskitchen.app;end'
+      : app;
+    copy.addEventListener('click', function () {
+      var done = function () { copy.textContent = '복사했어요'; setTimeout(function () { copy.textContent = '코드 복사'; }, 1800); };
+      if (navigator.clipboard) navigator.clipboard.writeText(c).then(done, function () { prompt('초대 코드', c); });
+      else prompt('초대 코드', c);
+    });
+  })();
+</script>
+</body>
+</html>
