@@ -15,7 +15,7 @@ session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'secure' => $secure, 
 session_start();
 header('X-Frame-Options: DENY');
 header('X-Content-Type-Options: nosniff');
-header('Referrer-Policy: no-referrer');
+header('Referrer-Policy: strict-origin-when-cross-origin');   // 지도 타일 서버가 출처(도메인)만 확인할 수 있게
 header('Cache-Control: no-store');
 
 function admin_hash(): string {
@@ -209,8 +209,8 @@ try {
     <form id="near">
       <input type="hidden" name="csrf" value="{$csrf}">
       <div class="row"><input name="lat" id="lat" placeholder="위도" required><input name="lng" id="lng" placeholder="경도" required></div>
-      <div class="row"><select name="r"><option value="50">50m</option><option value="100" selected>100m</option><option value="300">300m</option></select>
-      <input name="reason" placeholder="이유 (예: 유실 신고 #12 확인)" required style="flex:2"></div>
+      <div class="row"><select name="r"><option value="50">50m</option><option value="100" selected>100m</option><option value="300">300m</option></select></div>
+      <div class="row"><input name="reason" placeholder="검색 이유 (예: 유실 신고 #12 확인)" required></div>
       <button>검색</button>
     </form>
     <div id="res"></div>
@@ -221,7 +221,7 @@ try {
 <script>
 (function(){
   var map = L.map('map').setView([36.4, 127.8], 7);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {subdomains:'abcd', maxZoom:20, attribution:'© OpenStreetMap © CARTO'}).addTo(map);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'© OpenStreetMap contributors'}).addTo(map);
   var esc = function(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
   fetch('admin.php?p=points').then(function(r){ return r.json(); }).then(function(rows){
     var b = [];
