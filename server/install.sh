@@ -61,7 +61,7 @@ if [ -n "$DOMAIN" ]; then BASE="https://$DOMAIN"; NAME="$DOMAIN"; else BASE="htt
 sed -i "s|'base_url' => '[^']*'|'base_url' => '$BASE'|" "$CONF"
 chown root:www-data "$CONF" && chmod 640 "$CONF"
 # 공유한 급식소의 작은 고양이 사진 보관 폴더 (웹 주소로는 열리지 않는 곳)
-mkdir -p "$APP_DIR/server/storage/shares"
+mkdir -p "$APP_DIR/server/storage/shares" "$APP_DIR/server/storage/lost"
 chown -R www-data:www-data "$APP_DIR/server/storage" && chmod 750 "$APP_DIR/server/storage"
 
 say "5/6 웹서버(Apache) 사이트 설정: $NAME"

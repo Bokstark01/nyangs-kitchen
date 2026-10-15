@@ -95,3 +95,74 @@ CREATE TABLE IF NOT EXISTS nk_feed_logs (
   note     VARCHAR(200) NOT NULL DEFAULT '',
   KEY idx_share (share_id, fed_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ===== 급식소 서버 백업 (선택 동의한 사용자만) =====
+CREATE TABLE IF NOT EXISTS nk_consents (
+  user_id      INT UNSIGNED NOT NULL PRIMARY KEY,
+  backup       TINYINT      NOT NULL DEFAULT 0,       -- 1 = 급식소 서버 백업·유실묘 찾기 활용에 동의
+  version      VARCHAR(10)  NOT NULL,
+  consented_at INT UNSIGNED NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS nk_backup_points (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id    INT UNSIGNED NOT NULL,
+  nid        VARCHAR(40)  NOT NULL,
+  name       VARCHAR(60)  NOT NULL,
+  lat        DOUBLE       NOT NULL,
+  lng        DOUBLE       NOT NULL,
+  times      TEXT         NOT NULL,                  -- [{"t":"18:00","label":"저녁"}]
+  cats       TEXT         NOT NULL,                  -- 고양이 이름만 (사진은 휴대폰에만)
+  updated_at INT UNSIGNED NOT NULL,
+  UNIQUE KEY uq_user_nid (user_id, nid),
+  KEY idx_geo (lat, lng)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 관리자 열람 기록 (누가 언제 무엇을 봤는지)
+CREATE TABLE IF NOT EXISTS nk_admin_log (
+  id     BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  at     INT UNSIGNED NOT NULL,
+  ip     VARCHAR(45)  NOT NULL,
+  action VARCHAR(30)  NOT NULL,
+  detail VARCHAR(300) NOT NULL DEFAULT ''
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ===== 탐정모드 (유실묘 찾기) =====
+CREATE TABLE IF NOT EXISTS nk_lost (
+  id          INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id     INT UNSIGNED NOT NULL,
+  cat_name    VARCHAR(30)  NOT NULL,
+  description VARCHAR(500) NOT NULL DEFAULT '',
+  photo       VARCHAR(40)  NULL,
+  lat         DOUBLE       NOT NULL,
+  lng         DOUBLE       NOT NULL,
+  lost_date   CHAR(10)     NOT NULL,
+  contact     VARCHAR(60)  NOT NULL DEFAULT '',      -- 보호자가 공개하기로 한 연락처 (선택)
+  status      VARCHAR(12)  NOT NULL,                  -- pending | active | rejected | found | closed
+  radius      INT UNSIGNED NOT NULL DEFAULT 0,        -- 지금까지 알린 반경 (0, 50, 100)
+  admin_note  VARCHAR(300) NOT NULL DEFAULT '',
+  created_at  INT UNSIGNED NOT NULL,
+  updated_at  INT UNSIGNED NOT NULL,
+  KEY idx_user (user_id), KEY idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS nk_lost_notices (
+  lost_id    INT UNSIGNED NOT NULL,
+  user_id    INT UNSIGNED NOT NULL,                   -- 알림을 받은 급식소 주인
+  point_name VARCHAR(60)  NOT NULL,
+  meters     INT UNSIGNED NOT NULL,
+  created_at INT UNSIGNED NOT NULL,
+  seen_at    INT UNSIGNED NULL,
+  PRIMARY KEY (lost_id, user_id),
+  KEY idx_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS nk_lost_replies (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  lost_id    INT UNSIGNED NOT NULL,
+  user_id    INT UNSIGNED NOT NULL,
+  seen       TINYINT      NOT NULL,                   -- 1 봤어요 / 0 못 봤어요
+  note       VARCHAR(300) NOT NULL DEFAULT '',
+  created_at INT UNSIGNED NOT NULL,
+  KEY idx_lost (lost_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

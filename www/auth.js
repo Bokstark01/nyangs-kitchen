@@ -268,22 +268,26 @@ window.NK_AUTH = {
   provider: () => PROVIDER_LABEL[providerOf(user)] || providerOf(user),
   onChange: f => listeners.push(f),
   handleBack,
-  // 이웃과 함께 (share.php)
-  async share(action, data, method) {
+  // 로그인이 필요한 기능들: share.php(이웃과 함께) · backup.php(급식소 백업) · lost.php(탐정모드)
+  async call(file, action, data, method) {
     if (!configured) return { error: 'not_configured', message: '서버가 연결되지 않은 테스트 버전이에요.' };
     if (!token) return { error: 'unauthorized', message: '로그인해 주세요.', status: 401 };
-    const r = await api(action, data, method, 'share.php');
+    const r = await api(action, data, method, file);
     if (r.status === 401) signedOut();
     return r;
   },
-  async sharePhoto(shareId, f) {
+  share(action, data, method) { return window.NK_AUTH.call('share.php', action, data, method); },
+  backup(action, data, method) { return window.NK_AUTH.call('backup.php', action, data, method); },
+  lost(action, data, method) { return window.NK_AUTH.call('lost.php', action, data, method); },
+  async blobUrl(path) {   // 예: 'share.php?action=photo&share_id=1&f=a.jpg'
     if (!configured || !token) return null;
     try {
-      const res = await fetch(`${API}/share.php?action=photo&share_id=${encodeURIComponent(shareId)}&f=${encodeURIComponent(f)}`, { headers: { 'X-NK-Token': token } });
+      const res = await fetch(`${API}/${path}`, { headers: { 'X-NK-Token': token } });
       if (!res.ok) return null;
       return URL.createObjectURL(await res.blob());
     } catch (e) { return null; }
   },
+  sharePhoto(shareId, f) { return window.NK_AUTH.blobUrl(`share.php?action=photo&share_id=${encodeURIComponent(shareId)}&f=${encodeURIComponent(f)}`); },
   async signOut() {
     if (!configured) { entered = false; view = 'setup'; show(); return; }
     if (token) await api('logout', {});

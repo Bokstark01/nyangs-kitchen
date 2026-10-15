@@ -217,3 +217,13 @@ button{cursor:pointer}
 .code{font-family:var(--display);font-size:44px;letter-spacing:6px;text-align:center;color:var(--accent);background:var(--surface);border-radius:16px;padding:14px 8px;display:flex;justify-content:center;align-items:center;gap:6px}
 .code span{width:14px;height:3px;border-radius:2px;background:var(--line)}
 .time .btn,.li .btn{flex-shrink:0;white-space:nowrap}
+
+/* 탐정모드 */
+.lph{width:76px;height:76px;flex-shrink:0;border-radius:14px;background:var(--surface-2) center/cover no-repeat;border:none;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--muted);font-size:12px;font-weight:600}
+.lph.pick{width:96px;height:96px;border:1.5px dashed var(--line)}
+.lostcard{gap:10px}
+.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;line-height:1.55}
+.steps b{margin-right:6px}
+.crosshair{position:absolute;left:50%;top:50%;width:34px;height:34px;margin:-17px 0 0 -17px;border:3px solid #C2560F;border-radius:50%;box-shadow:0 0 0 4px rgba(255,255,255,.8);pointer-events:none!important}
+.crosshair::after{content:"";position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:3px;background:#C2560F}
+.field textarea{min-height:96px;padding:12px 14px;line-height:1.5;resize:vertical}

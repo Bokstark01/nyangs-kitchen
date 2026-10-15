@@ -12,6 +12,18 @@ curl -fsSL https://raw.githubusercontent.com/Bokstark01/nyangs-kitchen/main/serv
 bash /var/www/nyangs-kitchen/server/install.sh api.도메인.com
 ```
 
+## 관리자 페이지 (운영자 전용)
+
+서버에서 한 번 비밀번호를 정하면 `https://api.도메인/admin.php` 에서 로그인할 수 있어요.
+
+```bash
+bash /var/www/nyangs-kitchen/server/tools/admin-password.sh
+```
+
+- 급식소 서버 백업에 **동의한 사용자**의 급식소만 지도에 보여요 (공유 기능의 급식소는 보이지 않아요).
+- 유실 신고 확인 → 50m 알림 → 100m로 넓히기를 여기서 해요.
+- 로그인·열람·검색은 모두 기록돼요 (열람 기록 메뉴).
+
 ## 0. 꼭 필요한 것: 도메인과 HTTPS
 
 앱은 보안상 **https 주소로만** 서버와 통신해요. 구글 로그인도 IP 주소가 아닌 도메인이 있어야 돼요.

@@ -4,3 +4,4 @@ node_modules/
 www/vendor/
 server/config.php
 server/storage/
+server/admin.hash

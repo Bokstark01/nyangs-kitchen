@@ -52,6 +52,9 @@ function delete_share(int $shareId): void {
 // 회원탈퇴: 내가 공유한 급식소는 통째로, 공유받은 기록과 내 밥 기록은 지운다
 function delete_user_shares(int $userId): void {
     $db = db();
+    // 급식소 서버 백업과 동의 기록도 함께 지운다
+    $db->prepare('DELETE FROM nk_backup_points WHERE user_id = ?')->execute([$userId]);
+    $db->prepare('DELETE FROM nk_consents WHERE user_id = ?')->execute([$userId]);
     $st = $db->prepare('SELECT id FROM nk_shares WHERE owner_id = ?');
     $st->execute([$userId]);
     foreach ($st->fetchAll() as $r) delete_share((int)$r['id']);
@@ -59,6 +62,12 @@ function delete_user_shares(int $userId): void {
     $db->prepare('DELETE FROM nk_feed_logs WHERE user_id = ?')->execute([$userId]);
     $db->prepare("UPDATE nk_requests SET status = 'cancelled', helper_id = NULL, updated_at = ? WHERE helper_id = ? AND status IN ('pending','accepted')")
         ->execute([now(), $userId]);
+    // 탐정모드: 내 유실 신고(사진 포함), 내가 받은 알림, 내가 남긴 답장
+    $st = $db->prepare('SELECT id FROM nk_lost WHERE user_id = ?');
+    $st->execute([$userId]);
+    foreach ($st->fetchAll() as $r) delete_lost((int)$r['id']);
+    $db->prepare('DELETE FROM nk_lost_notices WHERE user_id = ?')->execute([$userId]);
+    $db->prepare('DELETE FROM nk_lost_replies WHERE user_id = ?')->execute([$userId]);
 }
 
 function clean_times($v): array {
@@ -77,7 +86,9 @@ function valid_date(string $d): bool {
 }
 
 // 앱이 보낸 작은 JPEG(base64)를 저장하고 파일 이름을 돌려준다
-function save_photo(int $shareId, string $b64): ?string {
+function save_photo(int $shareId, string $b64): ?string { return save_jpeg_to(share_photo_dir($shareId), $b64); }
+// 앱이 보낸 작은 JPEG(base64)를 검사해서 저장하고 파일 이름을 돌려준다
+function save_jpeg_to(string $dir, string $b64): ?string {
     $b64 = preg_replace('#^data:image/jpeg;base64,#', '', $b64) ?? '';
     $bin = base64_decode($b64, true);
     if ($bin === false || strlen($bin) < 100 || strlen($bin) > NK_MAX_PHOTO_BYTES) return null;
@@ -86,7 +97,6 @@ function save_photo(int $shareId, string $b64): ?string {
         $info = @getimagesizefromstring($bin);
         if (!$info || ($info[2] ?? 0) !== IMAGETYPE_JPEG || $info[0] > 1200 || $info[1] > 1200) return null;
     }
-    $dir = share_photo_dir($shareId);
     if (!is_dir($dir) && !@mkdir($dir, 0750, true)) throw new RuntimeException('cannot create photo dir');
     $name = substr(sha($bin), 0, 32) . '.jpg';
     if (!is_file("$dir/$name")) file_put_contents("$dir/$name", $bin, LOCK_EX);

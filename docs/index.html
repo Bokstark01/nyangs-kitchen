@@ -98,6 +98,18 @@
   .step h3{font:400 21px/1.3 var(--display);margin:0 0 6px;color:var(--deep)}
   .step p{margin:0;color:var(--muted);font-size:15px}
 
+  .detective{background:var(--deep);color:var(--cream)}
+  .detective h2{color:var(--cream)}
+  .detective .eyebrow{color:#F2B544}
+  .detective .sub{color:rgba(244,236,214,.85)}
+  .dsteps{counter-reset:d;list-style:none;margin:36px 0 0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .dsteps li{counter-increment:d;background:rgba(244,236,214,.08);border:1px solid rgba(244,236,214,.18);border-radius:20px;padding:22px 20px;display:flex;flex-direction:column;gap:8px}
+  .dsteps li::before{content:counter(d);width:34px;height:34px;border-radius:50%;background:#F2B544;color:var(--deep);display:grid;place-items:center;font:400 18px/1 var(--display)}
+  .dsteps b{font:400 21px/1.3 var(--display)}
+  .dsteps span{font-size:14.5px;opacity:.85}
+  .detective .note{margin:26px 0 0;font-size:15px;opacity:.9}
+  @media (max-width:860px){.dsteps{grid-template-columns:1fr 1fr}}
+  @media (max-width:520px){.dsteps{grid-template-columns:1fr}}
   .closing{background:var(--green);color:var(--cream);text-align:center}
   .closing h2{color:var(--cream)}
   .closing p{opacity:.9;margin:0 auto 26px;max-width:32em}
@@ -127,6 +139,7 @@
       </a>
       <div>
         <a class="link hide-sm" href="#features">기능</a>
+        <a class="link hide-sm" href="#detective">탐정모드</a>
         <a class="link hide-sm" href="#privacy">개인정보</a>
         <a class="link" href="mailto:1984bok@gmail.com">문의</a>
       </div>
@@ -173,7 +186,7 @@
         <article class="feat"><div class="ic">⏰</div><h3>밥 시간 알림</h3><p>매일 정해진 시간에 알림을 받고, 오늘 밥을 줬는지 한눈에 확인해요.</p></article>
         <article class="feat"><div class="ic">⚠️</div><h3>급식 주의 구역</h3><p>민원이 있거나 조심해야 하는 곳을 지도에 표시해, 갈등 없이 밥을 줄 수 있게 도와요.</p></article>
         <article class="feat"><div class="ic">🤝</div><h3>이웃과 함께</h3><p>초대 코드로 고른 사람에게만 급식소를 공유하고, 여행이나 출장 때 밥 주기를 부탁해요. 누가 언제 밥을 줬는지도 함께 봐요.</p></article>
-        <article class="feat soon"><div class="ic">🔎</div><h3>탐정모드 <span class="tag">준비 중</span></h3><p>고양이를 잃어버렸을 때, 잃어버린 곳에서 50m, 100m 안의 급식소를 차례로 찾아 알려줘요.</p></article>
+        <article class="feat"><div class="ic">🔎</div><h3>탐정모드</h3><p>고양이를 잃어버리면 신고하세요. 운영자가 확인한 뒤 잃어버린 곳 50m, 100m 안 급식소 주인에게 차례로 알리고, ‘봤어요’ 소식을 전해드려요.</p></article>
       </div>
     </div>
   </section>
@@ -189,8 +202,8 @@
       <div class="vault">
         <ul>
           <li><span>📱</span><div><b>휴대폰에만 저장</b><span>급식 포인트 · 고양이 사진 · 밥 시간 · 주의 구역</span></div></li>
-          <li><span>🔐</span><div><b>서버에 저장</b><span>로그인 계정 정보, 그리고 내가 공유하기로 고른 급식소만 (초대한 사람만 볼 수 있어요)</span></div></li>
-          <li><span>🗑️</span><div><b>언제든 삭제</b><span>앱 설정에서 회원탈퇴하면 계정이 바로 지워져요</span></div></li>
+          <li><span>🔐</span><div><b>서버에 저장</b><span>로그인 계정 정보, 내가 공유하기로 고른 급식소, 그리고 동의한 경우에만 급식소 백업(사진 제외)</span></div></li>
+          <li><span>🗑️</span><div><b>언제든 끄고 삭제</b><span>백업을 끄거나 회원탈퇴하면 서버 기록이 바로 지워져요</span></div></li>
         </ul>
       </div>
     </div>
@@ -205,6 +218,21 @@
         <div class="step"><h3>급식소 등록</h3><p>지도에서 밥 놓는 자리를 꾸욱 눌러 저장해요.</p></div>
         <div class="step"><h3>알림 맞추기</h3><p>밥 시간을 정해두면 매일 잊지 않고 챙길 수 있어요.</p></div>
       </div>
+    </div>
+  </section>
+
+  <section id="detective" class="detective">
+    <div class="wrap">
+      <div class="eyebrow">탐정모드</div>
+      <h2>잃어버린 고양이,<br>동네 급식소가 함께 찾아요</h2>
+      <p class="sub">길고양이 급식소에는 동네 고양이들이 모여요. 집을 나간 고양이도 배가 고프면 급식소를 찾아올 수 있어요. 탐정모드는 잃어버린 곳 가까운 급식소 주인들에게 차례로 도움을 청해요.</p>
+      <ol class="dsteps">
+        <li><b>유실 신고</b><span>앱의 탐정모드에서 사진, 특징, 잃어버린 날과 장소를 알려주세요.</span></li>
+        <li><b>운영자 확인</b><span>장난이나 악용을 막기 위해 운영자가 신고 내용을 확인해요.</span></li>
+        <li><b>50m → 100m 알림</b><span>잃어버린 곳에서 50m 안 급식소 주인부터, 필요하면 100m까지 넓혀 알려요.</span></li>
+        <li><b>‘봤어요’ 답장</b><span>급식소 주인이 본 시간과 장소를 답장하면 보호자에게 바로 보여요.</span></li>
+      </ol>
+      <p class="note">🐾 고양이 안전을 위해 급식소의 정확한 위치는 신고한 분께도 공개하지 않아요. 알림은 <b>급식소 서버 백업에 동의한</b> 급식소 주인에게만 가요.</p>
     </div>
   </section>
 

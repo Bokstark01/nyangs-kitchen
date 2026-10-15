@@ -49,7 +49,7 @@ const CAT_COLORS = ['#E9C79A', '#3A3A3A', '#C9A27A', '#8C8F86', '#D8D2C6', '#B58
 function blank() { return { points: [], zones: [], filters: { mine: true, zone: true, shared: true }, kakaoKey: '', nextNid: 1000, center: null }; }
 let S;
 try { S = Object.assign(blank(), JSON.parse(localStorage.getItem(STORE_KEY)) || {}); } catch (e) { S = blank(); }
-function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { toast('저장 공간이 부족해요'); } }
+function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { toast('저장 공간이 부족해요'); } try { backupSoon(); } catch (e) {} }
 const pt = id => S.points.find(p => p.id === id);
 const nextTime = p => p.times.filter(t => !isDone(t)).sort((a, b) => a.t.localeCompare(b.t))[0] || null;
 const kakaoKey = () => (S.kakaoKey || (window.NK_CONFIG && window.NK_CONFIG.kakaoKey) || '').trim();
@@ -371,6 +371,12 @@ function renderMapUi() {
     return;
   }
   if (mapState === 'loading') { ui.innerHTML = `<div class="mapfallback" style="justify-content:center;align-items:center"><span class="muted">지도를 불러오는 중…</span></div>`; return; }
+  if (R.picking) {
+    ui.innerHTML = `<div class="crosshair" aria-hidden="true"></div>
+      <div class="addhint" style="top:12px"><span>지도를 움직여 <b>잃어버린 곳</b>을 가운데 맞춰주세요</span></div>
+      <div class="peek"><div class="row"><button class="btn sm" style="flex:1" data-act="pickCancel">취소</button><button class="btn sm primary" style="flex:2" data-act="pickConfirm">이 위치로 정하기</button></div></div>`;
+    return;
+  }
   const sel = R.sel ? pt(R.sel) : null;
   let peek = '';
   if (sel && !R.adding) {
@@ -406,7 +412,7 @@ function renderMapUi() {
 const TABS = [['map', '지도', I.map], ['schedule', '급식 일정', I.clock], ['share', '함께', I.people], ['board', '이웃', I.chat], ['detective', '탐정모드', I.search]];
 function renderTabs() {
   $('#tabs').hidden = !!R.screen;
-  $('#tabs').innerHTML = TABS.map(([k, l, ic]) => `<button data-act="tab" data-v="${k}" ${R.tab === k && !R.screen ? 'aria-current="page"' : ''}>${ic}${l}${k === 'share' && SH.pending ? `<span class="nb" aria-label="받은 부탁 ${SH.pending}건">${SH.pending}</span>` : ''}</button>`).join('');
+  $('#tabs').innerHTML = TABS.map(([k, l, ic]) => `<button data-act="tab" data-v="${k}" ${R.tab === k && !R.screen ? 'aria-current="page"' : ''}>${ic}${l}${k === 'share' && SH.pending ? `<span class="nb" aria-label="받은 부탁 ${SH.pending}건">${SH.pending}</span>` : ''}${k === 'detective' && LS.unread ? `<span class="nb" aria-label="새 유실묘 알림 ${LS.unread}건">${LS.unread}</span>` : ''}</button>`).join('');
 }
 
 function scheduleScreen() {
@@ -472,8 +478,7 @@ function pointScreen() {
 
 function soonScreen(kind) {
   const C = {
-    board: { title: '이웃', head: '동네 이웃과<br>이야기를 나눠요', body: '우리 동네 집사들이 소식과 정보를 나누는 이웃 게시판이에요. 다음 업데이트에서 열려요. 급식소 공유와 밥 부탁은 ‘함께’ 탭에서 지금 바로 쓸 수 있어요.', extra: `<button class="btn primary" data-act="tab" data-v="share">함께 탭으로 가기</button>` },
-    detective: { title: '탐정모드', head: '잃어버린 고양이를<br>급식 포인트로 찾아요', body: '유실 신고와 본인인증을 마친 보호자에게 유실 지점 50m, 100m 안의 급식 포인트를 순서대로 알려주는 기능이에요. 3차 업데이트에서 열려요.', extra: '' }
+    board: { title: '이웃', head: '동네 이웃과<br>이야기를 나눠요', body: '우리 동네 집사들이 소식과 정보를 나누는 이웃 게시판이에요. 다음 업데이트에서 열려요. 급식소 공유와 밥 부탁은 ‘함께’ 탭에서 지금 바로 쓸 수 있어요.', extra: `<button class="btn primary" data-act="tab" data-v="share">함께 탭으로 가기</button>` }
   }[kind];
   return `<header class="topbar"><div><div class="brand">${C.title}</div></div></header>
   <div class="pad"><span class="soon">준비 중</span><h2 class="h-display" style="font-size:24px">${C.head}</h2><p class="muted" style="margin:0;line-height:1.7">${C.body}</p>${C.extra}</div>`;
@@ -490,11 +495,13 @@ function render() {
     let html;
     if (R.screen === 'point') html = pointScreen();
     else if (R.screen === 'shared') html = sharedScreen();
+    else if (R.screen === 'lostForm') html = lostFormScreen();
+    else if (R.tab === 'detective') html = detectiveScreen();
     else if (R.tab === 'schedule') html = scheduleScreen();
     else if (R.tab === 'share') html = shareScreen();
     else html = soonScreen(R.tab);
     $('#view').innerHTML = html;
-    setTimeout(hydratePhotos, 0);
+    setTimeout(() => { hydratePhotos(); hydrateLostPhotos(); }, 0);
   }
   renderTabs();
 }
@@ -523,13 +530,16 @@ function settingsSheet() {
     : (AU && AU.configured ? `<button class="btn primary" data-act="logout">로그인하기</button>` : '');
   sheet(`<h2>설정</h2>
     ${acct}
+    ${AU && AU.user() ? `<div class="card"><div class="between"><span><b>급식소 서버 백업</b></span>${sw('bkSw', BK.consent === true, 'backupToggle')}</div>
+      <span class="small muted">${BK.consent === true ? `켜짐 · 급식소 ${BK.count}곳 백업됨. 사진은 올리지 않아요. 끄면 서버 기록이 바로 지워져요.` : '꺼짐 · 휴대폰을 바꾸면 급식소를 복원할 수 없고, 근처 유실묘 알림을 받지 않아요.'}</span>
+      ${BK.consent === true ? `<button class="btn sm" data-act="restoreGo">백업에서 불러오기</button>` : ''}</div>` : ''}
     <div class="card"><div class="between"><span>급식 포인트</span><b>${S.points.length}곳</b></div><div class="between"><span>등록한 고양이</span><b>${cats}마리</b></div><div class="between"><span>급식 주의 구역</span><b>${S.zones.length}곳</b></div></div>
     <div class="field"><label for="keyInput2">카카오 지도 JavaScript 키 (선택)</label><input id="keyInput2" value="${esc(S.kakaoKey)}" placeholder="${kakaoKey() ? '빌드에 들어간 키 사용 중' : '없으면 기본 지도를 써요'}" autocapitalize="off" autocomplete="off" spellcheck="false"></div>
     <button class="btn" data-act="saveKey2">키 저장</button>
     <button class="btn" data-act="testNotif">알림 테스트 (5초 뒤)</button>
     <button class="btn danger" data-act="resetAsk">모든 데이터 지우기</button>
     <a class="btn" href="${PRIVACY_URL}" target="_blank" rel="noopener">개인정보처리방침</a>
-    <p class="small muted" style="margin:0">냥's 키친 ${esc(APP_VERSION)} · 데이터와 사진은 이 휴대폰에만 저장돼요.</p>`);
+    <p class="small muted" style="margin:0">냥's 키친 ${esc(APP_VERSION)} · 고양이 원본 사진은 이 휴대폰에만 저장돼요.</p>`);
 }
 
 /* ---------- 이웃과 함께: 급식소 공유 · 초대 · 밥 부탁 · 밥 줬어요 ----------
@@ -856,9 +866,230 @@ async function handleJoinLink(url) {
   A.tab('share'); SA.joinAsk(c);
 }
 
+/* ---------- 급식소 서버 백업 (선택 동의) ----------
+   동의하면 급식소 이름·위치·밥 시간·고양이 이름만 서버에 백업한다. 사진은 올리지 않는다.
+   휴대폰을 바꿔도 복원되고, 운영자가 확인한 유실 신고가 있을 때 근처 급식소 주인으로 알림을 받는다. */
+const BK = { consent: null, count: 0, checked: false, timer: null };
+function backupPayload() {
+  return { points: S.points.map(p => ({ nid: p.id, name: p.name, lat: p.lat, lng: p.lng, times: p.times.map(t => ({ t: t.t, label: t.label })), cats: p.cats.map(c => ({ name: c.name })) })) };
+}
+function backupSoon() {
+  if (BK.consent !== true || !canShare()) return;
+  clearTimeout(BK.timer);
+  BK.timer = setTimeout(async () => { const r = await AU().backup('sync', backupPayload()); if (!r.error) BK.count = r.count; }, 2500);
+}
+async function checkBackup() {
+  if (!canShare()) return;
+  const r = await AU().backup('status', null, 'GET');
+  if (r.error) return;
+  BK.consent = r.consent; BK.count = r.count; BK.checked = true;
+  if (BK.consent === null && !S.backupAsked) { backupConsentSheet(); return; }
+  if (BK.consent === true && !S.points.length && BK.count) { restoreAskSheet(); return; }
+  if (BK.consent === true) backupSoon();
+}
+function backupConsentSheet() {
+  sheet(`<h2>급식소를 서버에 백업할까요?</h2>
+    <p class="muted" style="margin:0;line-height:1.6">선택이에요. 켜지 않아도 앱은 그대로 쓸 수 있어요.</p>
+    <div class="card" style="gap:8px">
+      <div class="row">${I.ok}<span><b>휴대폰을 바꿔도</b> 급식소가 그대로 돌아와요</span></div>
+      <div class="row">${I.ok}<span>근처에서 고양이를 잃어버린 신고가 오면 <b>탐정모드로 알림</b>을 받아요</span></div>
+    </div>
+    <div class="store"><div class="ic">${I.lock}</div><div><b>무엇이 올라가나요</b><span class="small muted">급식소 이름·위치·밥 시간·고양이 이름만 올라가요. 사진은 올리지 않아요. 운영자만 볼 수 있고, 다른 사용자에게는 위치가 보이지 않아요. 유실 신고를 확인할 때만 근처 급식소를 찾아요. 언제든 설정에서 끄면 서버에서 바로 지워져요.</span></div></div>
+    <button class="btn primary" data-act="backupOn">동의하고 백업 켜기</button>
+    <button class="btn" data-act="backupLater">지금은 휴대폰에만 둘게요</button>
+    <a class="small muted" style="text-align:center" href="${PRIVACY_URL}" target="_blank" rel="noopener">개인정보처리방침 보기</a>`);
+}
+function restoreAskSheet() {
+  sheet(`<h2>백업된 급식소 ${BK.count}곳이 있어요</h2><p class="muted" style="margin:0;line-height:1.6">이 휴대폰으로 불러올까요? 고양이 사진은 백업하지 않아서 이름만 돌아와요.</p>
+    <button class="btn primary" data-act="restoreGo">불러오기</button><button class="btn" data-act="closeSheet">나중에</button>`);
+}
+const BA = {
+  async backupOn() {
+    const r = await AU().backup('consent', { on: true });
+    if (r.error) { toast(r.message); return; }
+    BK.consent = true; S.backupAsked = true; save(); closeSheet();
+    if (!S.points.length && BK.count) { restoreAskSheet(); return; }
+    const s = await AU().backup('sync', backupPayload());
+    if (!s.error) BK.count = s.count;
+    toast(`급식소 ${S.points.length}곳을 백업했어요`); render();
+  },
+  async backupLater() {
+    S.backupAsked = true; save(); closeSheet();
+    await AU().backup('consent', { on: false });
+    BK.consent = false; toast('급식소는 이 휴대폰에만 둘게요. 설정에서 언제든 켤 수 있어요');
+  },
+  async backupToggle(v, el) {
+    if (el.checked) { el.checked = false; backupConsentSheet(); return; }
+    const r = await AU().backup('consent', { on: false });
+    if (r.error) { el.checked = true; toast(r.message); return; }
+    BK.consent = false; BK.count = 0; S.backupAsked = true; save(); toast('백업을 끄고 서버의 급식소 기록을 지웠어요');
+  },
+  async restoreGo() {
+    const r = await AU().backup('restore', null, 'GET');
+    if (r.error) { toast(r.message); return; }
+    let added = 0;
+    for (const bp of r.points) {
+      if (S.points.some(p => p.id === bp.nid)) continue;
+      const p = { id: bp.nid, name: bp.name, lat: bp.lat, lng: bp.lng,
+        times: bp.times.map(t => ({ id: uid(), t: t.t, label: t.label || '급식', alarm: true, nid: 0, doneDate: '' })),
+        cats: bp.cats.map((n, i) => ({ id: uid(), name: n, color: CAT_COLORS[i % CAT_COLORS.length], photo: null })) };
+      S.points.push(p); added++;
+    }
+    save(); closeSheet(); render(); syncOverlays(); toast(`급식소 ${added}곳을 불러왔어요`);
+    for (const p of S.points) for (const t of p.times) if (t.alarm) await scheduleAlarm(p, t);
+  }
+};
+
+/* ---------- 탐정모드 ----------
+   1) 보호자가 유실 신고  2) 운영자가 확인  3) 유실 지점 50m → 100m 안 급식소 주인에게 알림
+   4) 주인이 '봤어요/못 봤어요' 답장  5) 보호자는 답장과 알린 곳 수만 본다 (급식소 위치는 보이지 않음) */
+const LS = { loaded: false, loading: false, mine: [], nearby: [], unread: 0, error: '' };
+const LF = { name: '', desc: '', date: '', contact: '', photo: null, lat: null, lng: null };
+async function loadLost(quiet) {
+  if (!canShare()) { LS.loaded = true; LS.mine = []; LS.nearby = []; LS.unread = 0; return; }
+  if (LS.loading) return;
+  LS.loading = true;
+  const r = await AU().lost('list', null, 'GET');
+  LS.loading = false; LS.loaded = true;
+  if (r.error) { LS.error = r.message; if (!quiet) toast(r.message); }
+  else { LS.error = ''; LS.mine = r.mine; LS.nearby = r.nearby; LS.unread = r.unread; }
+  render();
+}
+function lostPhotoEl(id, has) {
+  return has ? `<div class="lph" data-lostphoto="${id}"></div>` : `<div class="lph none">${I.search}</div>`;
+}
+function hydrateLostPhotos() {
+  if (!AU()) return;
+  document.querySelectorAll('[data-lostphoto]').forEach(async el => {
+    const k = 'lost/' + el.dataset.lostphoto;
+    photoCache[k] = photoCache[k] || AU().blobUrl(`lost.php?action=photo&id=${encodeURIComponent(el.dataset.lostphoto)}`);
+    const u = await photoCache[k];
+    if (u) el.style.backgroundImage = `url('${u}')`;
+  });
+}
+function detectiveScreen() {
+  const head = `<header class="topbar"><div><div class="brand">탐정모드</div><div class="where">잃어버린 고양이를 동네 급식소와 함께 찾아요</div></div></header>`;
+  if (!AU() || !AU().configured) return head + `<div class="pad"><div class="empty">서버가 연결되지 않은 테스트 버전이라 탐정모드를 쓸 수 없어요.</div></div>`;
+  if (!AU().user()) return head + `<div class="pad"><div class="empty">로그인하면 탐정모드를 쓸 수 있어요.</div><button class="btn primary" data-act="logout">로그인하기</button></div>`;
+  if (!LS.loaded) { loadLost(true); return head + `<div class="pad"><div class="empty">불러오는 중…</div></div>`; }
+  LS.nearby.filter(n => n.new).forEach(n => { n.new = false; AU().lost('opened', { lost_id: n.id }); });
+  if (LS.unread) { LS.unread = 0; setTimeout(renderTabs, 0); }
+
+  const nearby = LS.nearby.length ? `<section style="display:flex;flex-direction:column;gap:10px"><h3 class="h-sec">내 급식소 근처에서 찾는 고양이 ${LS.nearby.length}</h3>
+    ${LS.nearby.map(n => `<div class="card lostcard">
+      <div class="row" style="align-items:flex-start;gap:12px">${lostPhotoEl(n.id, n.photo)}
+        <div style="display:flex;flex-direction:column;gap:3px;min-width:0"><b style="font-size:17px">${esc(n.cat_name)}</b>
+          <span class="small" style="color:var(--warn-ink);font-weight:600">내 급식소 ‘${esc(n.point_name)}’에서 ${n.meters}m</span>
+          <span class="small muted">${fmtDate(n.lost_date)} 잃어버림 · ${esc(n.reporter)} 님</span></div></div>
+      ${n.description ? `<p style="margin:0;line-height:1.6">${esc(n.description)}</p>` : ''}
+      ${n.contact ? `<span class="small">보호자 연락처: <b>${esc(n.contact)}</b></span>` : ''}
+      ${n.my_reply ? `<span class="small muted">내 답장: ${n.my_reply.seen ? '봤어요' : '못 봤어요'}${n.my_reply.note ? ` · ${esc(n.my_reply.note)}` : ''} (${fmtAgo(n.my_reply.at)})</span>` : ''}
+      <div class="row"><button class="btn sm" style="flex:1" data-act="lostReply" data-v="${n.id}" data-s="0">못 봤어요</button><button class="btn sm primary" style="flex:1" data-act="lostReply" data-v="${n.id}" data-s="1">봤어요</button></div>
+    </div>`).join('')}</section>` : '';
+
+  const mine = LS.mine.length ? `<section style="display:flex;flex-direction:column;gap:10px"><h3 class="h-sec">내 유실 신고</h3>
+    ${LS.mine.map(m => `<div class="card lostcard">
+      <div class="row" style="align-items:flex-start;gap:12px">${lostPhotoEl(m.id, m.photo)}
+        <div style="display:flex;flex-direction:column;gap:3px;min-width:0"><b style="font-size:17px">${esc(m.cat_name)}</b>
+          <span class="chip ${m.status === 'active' ? '' : 'ghost'}" style="align-self:flex-start">${esc(m.status_text)}</span>
+          <span class="small muted">${fmtDate(m.lost_date)} 잃어버림 · ${fmtAgo(m.created_at)} 신고</span></div></div>
+      ${m.status === 'pending' ? `<span class="small muted">운영자가 신고 내용을 확인하고 있어요. 확인되면 잃어버린 곳 50m 안 급식소부터 알려요.</span>` : ''}
+      ${m.status === 'active' ? `<span class="small">${m.radius}m 안 급식소 주인 <b>${m.counts.notified}명</b>에게 알렸어요 · ${m.counts.opened}명 확인</span>` : ''}
+      ${m.status === 'rejected' && m.admin_note ? `<span class="small" style="color:var(--warn-ink)">운영자 메모: ${esc(m.admin_note)}</span>` : ''}
+      ${m.replies.length ? `<div class="list" style="padding:0 12px">${m.replies.map(r => `<div class="li" style="min-height:52px;align-items:flex-start;padding:8px 0;flex-direction:column;gap:2px"><b>${r.seen ? '👀 봤어요' : '못 봤어요'} · ${esc(r.by)} 님${r.meters != null ? ` (급식소가 ${r.meters}m 거리)` : ''}</b>${r.note ? `<span>${esc(r.note)}</span>` : ''}<span class="small muted">${fmtAgo(r.at)}</span></div>`).join('')}</div>` : (m.status === 'active' ? `<span class="small muted">아직 답장이 없어요. 답장이 오면 여기에 보여요.</span>` : '')}
+      ${m.status === 'pending' || m.status === 'active' ? `<div class="row"><button class="btn sm" style="flex:1" data-act="lostClose" data-v="${m.id}" data-f="0">신고 닫기</button><button class="btn sm primary" style="flex:1" data-act="lostClose" data-v="${m.id}" data-f="1">찾았어요!</button></div>` : ''}
+    </div>`).join('')}</section>` : '';
+
+  const backupHint = BK.consent !== true ? `<div class="card"><b>근처 유실묘 알림을 받으려면</b><span class="small muted">급식소 서버 백업을 켜면, 내 급식소 근처에서 고양이를 잃어버린 신고가 확인됐을 때 이 화면에서 알려드려요.</span><button class="btn sm" data-act="backupAsk">급식소 백업 켜기</button></div>` : '';
+  return head + `<div class="pad">
+    ${LS.error ? `<div class="card"><span class="small" style="color:var(--warn-ink)">${esc(LS.error)}</span><button class="btn sm" data-act="reloadLost">다시 불러오기</button></div>` : ''}
+    <button class="btn primary" data-act="lostNew">${I.search} 고양이를 잃어버렸어요</button>
+    ${nearby}${mine}
+    ${!nearby && !mine ? `<div class="card" style="gap:12px"><h3 class="h-sec">이렇게 찾아요</h3>
+      <ol class="steps"><li><b>유실 신고</b> 사진, 특징, 잃어버린 곳을 알려주세요.</li><li><b>운영자 확인</b> 신고 내용을 확인해요.</li><li><b>50m → 100m</b> 잃어버린 곳 가까운 급식소 주인부터 차례로 알려요.</li><li><b>‘봤어요’ 답장</b> 급식소 주인의 답장이 이 화면에 와요.</li></ol>
+      <span class="small muted">급식소 위치는 고양이 안전을 위해 신고한 분께도 보이지 않아요. 대신 급식소 주인이 본 곳과 시간을 답장으로 알려줘요.</span></div>` : ''}
+    ${backupHint}
+  </div>`;
+}
+function lostFormScreen() {
+  const loc = LF.lat != null ? `${LF.lat.toFixed(5)}, ${LF.lng.toFixed(5)}` : '아직 정하지 않았어요';
+  return `<div class="navbar"><button class="back" data-act="back" aria-label="뒤로">${I.back}</button><h1>유실 신고</h1></div>
+  <div class="pad">
+    <div class="row" style="gap:14px;align-items:center">
+      <button class="lph pick" data-act="lostPhoto" style="${LF.photo ? `background-image:url('${LF.photo}')` : ''}">${LF.photo ? '' : `${I.plus}<span>사진</span>`}</button>
+      <span class="small muted" style="line-height:1.6">얼굴과 무늬가 잘 보이는 사진이면 좋아요. 작게 줄여서 올려요.</span>
+    </div>
+    <div class="field"><label for="lfName">고양이 이름</label><input id="lfName" maxlength="30" value="${esc(LF.name)}" placeholder="예: 까망이"></div>
+    <div class="field"><label for="lfDesc">특징</label><textarea id="lfDesc" maxlength="500" rows="4" placeholder="예: 검은 털, 빨간 목걸이, 겁이 많아요">${esc(LF.desc)}</textarea></div>
+    <div class="field"><label for="lfDate">잃어버린 날</label><input id="lfDate" type="date" value="${esc(LF.date || ymd(new Date()))}" max="${ymd(new Date())}"></div>
+    <div class="field"><label>잃어버린 곳</label><div class="card" style="gap:8px"><span>${loc}</span>
+      <div class="row"><button class="btn sm" style="flex:1" data-act="lostHere">지금 내 위치</button><button class="btn sm" style="flex:1" data-act="lostPickMap">지도에서 고르기</button></div></div></div>
+    <div class="field"><label for="lfContact">연락처 (선택)</label><input id="lfContact" maxlength="60" value="${esc(LF.contact)}" placeholder="적으면 알림 받은 급식소 주인에게 보여요"></div>
+    <p class="small muted" style="margin:0;line-height:1.6">신고 내용(사진·이름·특징·날짜, 적은 경우 연락처)은 운영자와, 운영자가 확인한 뒤 알림을 받는 근처 급식소 주인에게만 보여요.</p>
+  </div>
+  <div class="actions"><button class="btn primary" data-act="lostSubmit">신고하기</button></div>`;
+}
+function readLostForm() {
+  const g = id => { const e = $(id); return e ? e.value : ''; };
+  if ($('#lfName')) { LF.name = g('#lfName').trim(); LF.desc = g('#lfDesc').trim(); LF.date = g('#lfDate'); LF.contact = g('#lfContact').trim(); }
+}
+function mapCenterLatLng() {
+  if (!kmap) return null;
+  if (engine === 'kakao') { const c = kmap.getCenter(); return { lat: c.getLat(), lng: c.getLng() }; }
+  const c = kmap.getCenter(); return { lat: c.lat, lng: c.lng };
+}
+const LA = {
+  reloadLost() { LS.loaded = false; render(); },
+  backupAsk() { backupConsentSheet(); },
+  lostNew() { Object.assign(LF, { name: '', desc: '', date: ymd(new Date()), contact: '', photo: null, lat: null, lng: null }); R.screen = 'lostForm'; render(); $('#view').scrollTop = 0; },
+  async lostPhoto() {
+    readLostForm();
+    const ph = await pickPhoto(); if (!ph) return;
+    const src = ph.dataUrl || `data:image/${ph.format};base64,${ph.base64}`;
+    LF.photo = await smallJpeg(src); render();
+  },
+  async lostHere() {
+    readLostForm(); toast('내 위치를 찾는 중…');
+    const p = await getPosition();
+    if (!p) { toast('위치를 찾지 못했어요. 지도에서 골라주세요'); return; }
+    LF.lat = p.lat; LF.lng = p.lng; render();
+  },
+  lostPickMap() { readLostForm(); R.picking = true; R.screen = null; R.tab = 'map'; R.sel = null; render(); syncOverlays(); if (LF.lat != null) mapCenterTo(LF.lat, LF.lng); },
+  pickConfirm() { const c = mapCenterLatLng(); if (c) { LF.lat = c.lat; LF.lng = c.lng; } R.picking = false; R.tab = 'detective'; R.screen = 'lostForm'; render(); },
+  pickCancel() { R.picking = false; R.tab = 'detective'; R.screen = 'lostForm'; render(); },
+  async lostSubmit(v, el) {
+    readLostForm();
+    if (!LF.name) { toast('고양이 이름을 적어주세요'); return; }
+    if (LF.lat == null) { toast('잃어버린 곳을 정해주세요'); return; }
+    el.disabled = true; el.textContent = '보내는 중…';
+    const r = await AU().lost('report', { cat_name: LF.name, description: LF.desc, photo: LF.photo, lat: LF.lat, lng: LF.lng, lost_date: LF.date, contact: LF.contact });
+    if (r.error) { el.disabled = false; el.textContent = '신고하기'; toast(r.message); return; }
+    R.screen = null; R.tab = 'detective'; LS.loaded = false; render();
+    toast('신고했어요. 운영자가 확인하면 근처 급식소에 알려요');
+  },
+  lostReply(v, el) {
+    const seen = el.dataset.s === '1';
+    sheet(`<h2>${seen ? '봤어요! 언제, 어디서 봤나요?' : '못 봤어요'}</h2>
+      <div class="field"><label for="lrNote">${seen ? '본 시간과 장소, 상태' : '한마디 (선택)'}</label><textarea id="lrNote" rows="3" maxlength="300" placeholder="${seen ? '예: 오늘 저녁 7시쯤 급식소 옆 화단에서 밥 먹고 갔어요' : '예: 급식소에 오면 바로 알려드릴게요'}"></textarea></div>
+      <button class="btn primary" data-act="lostReplyGo" data-v="${v}" data-s="${seen ? 1 : 0}">보호자에게 보내기</button>`);
+  },
+  async lostReplyGo(v, el) {
+    el.disabled = true;
+    const r = await AU().lost('reply', { lost_id: Number(v), seen: el.dataset.s === '1', note: ($('#lrNote').value || '').trim() });
+    if (r.error) { el.disabled = false; toast(r.message); return; }
+    closeSheet(); toast('보호자에게 전했어요. 고마워요!'); await loadLost(true);
+  },
+  async lostClose(v, el) {
+    const found = el.dataset.f === '1';
+    const r = await AU().lost('close', { lost_id: Number(v), found });
+    if (r.error) { toast(r.message); return; }
+    toast(found ? '다행이에요! 신고를 닫았어요' : '신고를 닫았어요'); await loadLost(true);
+  }
+};
+
 /* ---------- actions ---------- */
 const A = {
-  tab(v) { R.tab = v; R.screen = null; R.adding = false; render(); $('#view').scrollTop = 0; },
+  tab(v) { R.tab = v; R.screen = null; R.adding = false; R.picking = false; render(); $('#view').scrollTop = 0; },
   back() { R.screen = null; render(); },
   scrim(v, el, e) { if (e.target === el) closeSheet(); },
   closeSheet() { closeSheet(); },
@@ -977,7 +1208,7 @@ const A = {
   }
 };
 
-Object.assign(A, SA);
+Object.assign(A, SA, BA, LA);
 // 공유 중인 급식소를 고치면 공유본도 따라 바뀐다
 ['renamePoint', 'saveTime', 'delTime', 'saveCat', 'renameCat', 'delCat'].forEach(k => {
   const f = A[k];
@@ -1015,12 +1246,13 @@ async function setupNative() {
       const authEl = document.getElementById('auth');
       if (authEl && !authEl.hidden) { P.App.exitApp(); return; }
       if (closeSheet()) return;
+      if (R.picking) { A.pickCancel(); return; }
       if (R.adding) { A.cancelAdd(); return; }
       if (R.screen) { A.back(); return; }
       if (R.tab !== 'map') { A.tab('map'); return; }
       P.App.exitApp();
     });
-    P.App.addListener('resume', () => { render(); loadShares(true); });
+    P.App.addListener('resume', () => { render(); loadShares(true); loadLost(true); });
     P.App.addListener('appUrlOpen', ev => handleJoinLink(ev && ev.url));
     try { const l = await P.App.getLaunchUrl(); if (l && l.url) handleJoinLink(l.url); } catch (e) {}
   }
@@ -1070,10 +1302,16 @@ render();
 (async () => {
   await introDone;
   if (!AU()) return;
-  AU().onChange(u => { SH.loaded = false; SH.owned = []; SH.joined = []; SH.pending = 0; if (u) loadShares(true); else { render(); syncOverlays(); } });
+  AU().onChange(u => {
+    SH.loaded = false; SH.owned = []; SH.joined = []; SH.pending = 0;
+    LS.loaded = false; LS.mine = []; LS.nearby = []; LS.unread = 0; BK.consent = null; BK.count = 0;
+    if (u) { loadShares(true); loadLost(true); checkBackup(); } else { render(); syncOverlays(); }
+  });
   await AU().ready;
-  await loadShares(true);
-  if (SH.pending) toast(`받은 밥 부탁이 ${SH.pending}건 있어요 · 함께 탭에서 확인해 주세요`);
+  await Promise.all([loadShares(true), loadLost(true)]);
+  if (LS.unread) toast(`내 급식소 근처에서 고양이를 찾고 있어요 · 탐정모드에서 확인해 주세요`);
+  else if (SH.pending) toast(`받은 밥 부탁이 ${SH.pending}건 있어요 · 함께 탭에서 확인해 주세요`);
+  await checkBackup();
 })();
 setupLongPress();
 loadMap();
