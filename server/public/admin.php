@@ -79,6 +79,32 @@ try {
         echo json_encode(array_map(fn($r) => [(int)$r['id'], $r['name'], round((float)$r['lat'], 6), round((float)$r['lng'], 6)], $rows), JSON_UNESCAPED_UNICODE);
         exit;
     }
+    if ($p === 'geo') {      // 동네·주소 검색 → 지도 이동 (카카오 REST 키가 있으면 카카오, 없으면 OpenStreetMap)
+        $q = cut((string)($_GET['q'] ?? ''), 60);
+        header('Content-Type: application/json; charset=utf-8');
+        if ($q === '') { echo '[]'; exit; }
+        $outG = [];
+        $key = (string)cfg('kakao_rest_key', '');
+        if ($key !== '') {
+            foreach (['address', 'keyword'] as $kind) {
+                $r = http_call('GET', "https://dapi.kakao.com/v2/local/search/{$kind}.json?size=8&query=" . rawurlencode($q), [], ['Authorization: KakaoAK ' . $key]);
+                foreach ($r['json']['documents'] ?? [] as $d) {
+                    $outG[] = ['name' => (string)($d['place_name'] ?? $d['address_name'] ?? ''), 'sub' => (string)($d['road_address_name'] ?? $d['address_name'] ?? ''), 'lat' => (float)$d['y'], 'lng' => (float)$d['x']];
+                }
+                if ($outG) break;
+            }
+        }
+        if (!$outG) {
+            $r = http_call('GET', 'https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=kr&accept-language=ko&limit=8&q=' . rawurlencode($q), [], ['User-Agent: nyangs-kitchen-admin/1.0 (https://nyangs-kitchen.com)']);
+            foreach (($r['json'] ?? []) as $d) {
+                if (!is_array($d) || !isset($d['lat'])) continue;
+                $outG[] = ['name' => (string)($d['name'] ?: $d['display_name']), 'sub' => (string)$d['display_name'], 'lat' => (float)$d['lat'], 'lng' => (float)$d['lon']];
+            }
+        }
+        alog('geo_search', $q);
+        echo json_encode(array_slice($outG, 0, 8), JSON_UNESCAPED_UNICODE);
+        exit;
+    }
     if ($p === 'near') {     // 한 지점 반경 안 급식소와 주인 (유실묘 찾기용)
         if ($method !== 'POST') { http_response_code(405); exit; }
         check_csrf();
@@ -204,7 +230,10 @@ try {
 <section class="split">
   <div id="map"></div>
   <aside>
-    <h2>유실묘 찾기 · 반경 검색</h2>
+    <h2>동네 찾기</h2>
+    <form id="geo" class="row"><input name="q" placeholder="예: 김포 대곶면, 대곶면 율생리, 역 이름" required style="flex:3"><button style="flex:1">찾기</button></form>
+    <div id="georesults"></div>
+    <h2 style="margin-top:18px">유실묘 찾기 · 반경 검색</h2>
     <p class="muted">지도에서 유실 지점을 누르고, 이유를 적은 뒤 검색하세요. 검색은 모두 기록돼요.</p>
     <form id="near">
       <input type="hidden" name="csrf" value="{$csrf}">
@@ -233,6 +262,24 @@ try {
     document.getElementById('lat').value = e.latlng.lat.toFixed(6);
     document.getElementById('lng').value = e.latlng.lng.toFixed(6);
     if (pin) pin.remove(); pin = L.marker(e.latlng).addTo(map);
+  });
+  var geoLayer = null;
+  document.getElementById('geo').addEventListener('submit', function(ev){
+    ev.preventDefault();
+    var q = new FormData(ev.target).get('q'), box = document.getElementById('georesults');
+    box.innerHTML = '<p class="muted">찾는 중…</p>';
+    fetch('admin.php?p=geo&q=' + encodeURIComponent(q)).then(function(r){ return r.json(); }).then(function(rows){
+      if (!rows.length) { box.innerHTML = '<p class="muted">찾지 못했어요. 읍·면·동 이름이나 도로명으로 다시 해보세요.</p>'; return; }
+      box.innerHTML = rows.map(function(g, i){ return '<button type="button" class="geo" data-i="' + i + '"><b>' + esc(g.name) + '</b><span>' + esc(g.sub) + '</span></button>'; }).join('');
+      box.querySelectorAll('.geo').forEach(function(b){ b.addEventListener('click', function(){
+        var g = rows[+b.dataset.i];
+        map.setView([g.lat, g.lng], 16);
+        if (geoLayer) geoLayer.remove();
+        geoLayer = L.circleMarker([g.lat, g.lng], {radius:9, color:'#C2560F', weight:3, fill:false}).bindTooltip(esc(g.name)).addTo(map);
+        document.getElementById('lat').value = g.lat.toFixed(6); document.getElementById('lng').value = g.lng.toFixed(6);
+      }); });
+      if (rows.length === 1) box.querySelector('.geo').click();
+    }).catch(function(){ box.innerHTML = '<p class="err">검색에 실패했어요.</p>'; });
   });
   document.getElementById('near').addEventListener('submit', function(ev){
     ev.preventDefault();
@@ -266,6 +313,7 @@ function page_head(string $title): void {
        . '.hit{border-top:1px solid var(--line);padding:9px 0;display:flex;flex-direction:column;gap:2px}.hit span{font-size:13px;color:#56635C}.muted{color:#56635C;font-size:13px}.err{color:#A84A0C}'
        . '.login{max-width:360px;margin:12vh auto;background:#fff;border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:12px}.login h1{font-size:20px;margin:0}.login form{display:flex;flex-direction:column;gap:10px}'
        . '.pad{padding:18px}table{width:100%;border-collapse:collapse;background:#fff;font-size:13px}th,td{border-bottom:1px solid var(--line);padding:7px 9px;text-align:left}'
+       . '.geo{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;background:#F4F6F2;color:#1D2B24;border:1px solid #D5DBD5;border-radius:10px;padding:8px 12px;margin-bottom:6px;text-align:left;font-weight:400}.geo span{font-size:12px;color:#56635C}.geo:hover{border-color:#2F6B4F}'
        . '.flash{background:#DDEBE2;padding:10px 14px;border-radius:10px}.lost{display:flex;gap:14px;background:#fff;border-radius:12px;padding:14px;margin:12px 0}.lost .ph{width:140px;flex-shrink:0}.lost img{width:140px;border-radius:10px}.lost .ph span{display:block;width:140px;height:100px;background:#EEF1EC;border-radius:10px;text-align:center;line-height:100px;color:#56635C;font-size:13px}.lost .bd{flex:1;min-width:0}.lost p{margin:6px 0}'
        . '.acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.acts form{display:flex;gap:6px}.acts button{width:auto}.acts .rej input{width:220px}button.ghost{background:#fff;color:#A84A0C;border:1px solid #C2560F}.reply{background:#F4F6F2;border-radius:8px;padding:6px 10px;font-size:13px}'
        . '.st{font-size:12px;font-weight:700;padding:2px 8px;border-radius:8px;background:#EEF1EC}.st-pending{background:#FBE9DD;color:#A84A0C}.st-active{background:#DDEBE2;color:#1F4A36}'
