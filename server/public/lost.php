@@ -5,6 +5,7 @@
 //   POST lost.php?action=reply  {lost_id,seen,note}             → {ok}   (알림 받은 급식소 주인)
 //   POST lost.php?action=opened {lost_id}                       → {ok}
 //   POST lost.php?action=close  {lost_id,found}                 → {ok}   (신고한 보호자)
+//   POST lost.php?action=delete {lost_id}                       → {ok}   (보호자가 내 신고를 사진·답장과 함께 지우기)
 //   GET  lost.php?action=photo&id=1                             → JPEG (보호자·알림 받은 주인만)
 // 급식소 위치는 보호자에게 보여주지 않는다. 보호자는 '몇 곳에 알렸는지'와 답장만 본다.
 declare(strict_types=1);
@@ -113,6 +114,13 @@ try {
         $l = find_lost((int)($in['lost_id'] ?? 0));
         if (!$l || (int)$l['user_id'] !== $uid) fail('forbidden', '내 신고가 아니에요.', 403);
         $db->prepare('UPDATE nk_lost SET status = ?, updated_at = ? WHERE id = ?')->execute([!empty($in['found']) ? 'found' : 'closed', now(), (int)$l['id']]);
+        out(['ok' => true]);
+    }
+
+    if ($action === 'delete') {
+        $l = find_lost((int)($in['lost_id'] ?? 0));
+        if (!$l || (int)$l['user_id'] !== $uid) fail('forbidden', '내 신고가 아니에요.', 403);
+        delete_lost((int)$l['id']);
         out(['ok' => true]);
     }
 

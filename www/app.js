@@ -1005,6 +1005,7 @@ function detectiveScreen() {
       ${m.status === 'rejected' && m.admin_note ? `<span class="small" style="color:var(--warn-ink)">운영자 메모: ${esc(m.admin_note)}</span>` : ''}
       ${m.replies.length ? `<div class="list" style="padding:0 12px">${m.replies.map(r => `<div class="li" style="min-height:52px;align-items:flex-start;padding:8px 0;flex-direction:column;gap:2px"><b>${r.seen ? '👀 봤어요' : '못 봤어요'} · ${esc(r.by)} 님${r.meters != null ? ` (급식소가 ${r.meters}m 거리)` : ''}</b>${r.note ? `<span>${esc(r.note)}</span>` : ''}<span class="small muted">${fmtAgo(r.at)}</span></div>`).join('')}</div>` : (m.status === 'active' ? `<span class="small muted">아직 답장이 없어요. 답장이 오면 여기에 보여요.</span>` : '')}
       ${m.status === 'pending' || m.status === 'active' ? `<div class="row"><button class="btn sm" style="flex:1" data-act="lostClose" data-v="${m.id}" data-f="0">신고 닫기</button><button class="btn sm primary" style="flex:1" data-act="lostClose" data-v="${m.id}" data-f="1">찾았어요!</button></div>` : ''}
+      ${m.status === 'pending' || m.status === 'active' ? '' : `<button class="btn sm danger" data-act="lostDelAsk" data-v="${m.id}">${I.trash} 신고 기록 지우기</button>`}
     </div>`).join('')}</section>` : '';
 
   const backupHint = BK.consent !== true ? `<div class="card"><b>근처 유실묘 알림을 받으려면</b><span class="small muted">급식소 서버 백업을 켜면, 내 급식소 근처에서 고양이를 잃어버린 신고가 확인됐을 때 이 화면에서 알려드려요.</span><button class="btn sm" data-act="backupAsk">급식소 백업 켜기</button></div>` : '';
@@ -1085,6 +1086,15 @@ const LA = {
     const r = await AU().lost('reply', { lost_id: Number(v), seen: el.dataset.s === '1', note: ($('#lrNote').value || '').trim() });
     if (r.error) { el.disabled = false; toast(r.message); return; }
     closeSheet(); toast('보호자에게 전했어요. 고마워요!'); await loadLost(true);
+  },
+  lostDelAsk(v) {
+    sheet(`<h2>신고 기록을 지울까요?</h2><p class="muted" style="margin:0;line-height:1.6">사진과 받은 답장까지 서버에서 바로 지워지고 되돌릴 수 없어요. 지우지 않아도 끝난 신고는 90일 뒤 자동으로 지워져요.</p>
+      <button class="btn danger" data-act="lostDel" data-v="${v}">지우기</button><button class="btn" data-act="closeSheet">취소</button>`);
+  },
+  async lostDel(v) {
+    const r = await AU().lost('delete', { lost_id: Number(v) });
+    if (r.error) { toast(r.message); return; }
+    LS.mine = LS.mine.filter(m => m.id !== Number(v)); closeSheet(); render(); toast('신고 기록을 지웠어요');
   },
   async lostClose(v, el) {
     const found = el.dataset.f === '1';

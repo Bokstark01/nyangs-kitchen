@@ -60,6 +60,9 @@ ok('reporter sees reply + counts, no point location',$m['status']==='active'&&$m
 $r=req('POST',"$B/lost.php?action=close",['lost_id'=>$lid,'found'=>true],$tA); ok('only reporter can close',$r['s']==403);
 $r=req('POST',"$B/lost.php?action=close",['lost_id'=>$lid,'found'=>true],$tL); ok('reporter closes as found',$r['s']==200);
 $r=req('GET',"$B/lost.php?action=list",null,$tA); ok('closed report disappears for owners',count($r['j']['nearby'])===0);
+$r=req('POST',"$B/lost.php?action=delete",['lost_id'=>$lid],$tA); ok('only reporter can delete',$r['s']==403);
+$r=req('POST',"$B/lost.php?action=delete",['lost_id'=>$lid],$tL); ok('reporter deletes finished report',$r['s']==200);
+$r=req('GET',"$B/lost.php?action=list",null,$tL); ok('deleted report gone + photo removed',count($r['j']['mine'])===0&&!is_dir(getenv('STORAGE')."/lost/$lid"));
 $h=adm('admin.php?p=log')['raw']; ok('admin log records searches',strpos($h,'near_search')!==false&&strpos($h,'lost_notify')!==false);
 // --- 탈퇴 연쇄 삭제 ---
 req('POST',"$B/api.php?action=delete",[],$tL); $db=new PDO(getenv('DBDSN'));
