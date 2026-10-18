@@ -122,7 +122,7 @@ button{cursor:pointer}
 .seg button{flex:1;height:40px;border:none;border-radius:10px;background:none;font-size:13px;font-weight:600;color:var(--muted)}
 .seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px var(--shadow)}
 
-.tabs{flex-shrink:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:var(--surface);border-top:1px solid var(--line);height:var(--tabh)}
+.tabs{flex-shrink:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));background:var(--surface);border-top:1px solid var(--line);height:var(--tabh)}
 .tabs button{border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;color:var(--muted);font-weight:500;padding:0}
 .tabs button[aria-current="page"]{color:var(--accent);font-weight:700}
 .ad{flex-shrink:0;height:var(--adh);background:var(--ad);border-top:1px solid var(--line);display:flex;align-items:center;justify-content:center;padding:3px 12px}

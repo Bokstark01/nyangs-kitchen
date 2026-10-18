@@ -39,6 +39,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const el = document.getElementById('auth');
 
 let user = null;
+let providers = { kakao: false, google: false };   // 서버 health 응답으로 채움
 let view = 'start';        // start | email | forgot | setup
 let mode = 'login';        // login | signup (email view)
 let busy = false;
@@ -92,8 +93,9 @@ function cardHtml() {
       <button class="auth-link" data-auth="browse">로그인 없이 둘러보기 (테스트 버전)</button>`;
   }
   if (view === 'start') {
-    return `<button class="sbtn kakao" data-auth="kakao" ${busy ? 'disabled' : ''}>${KAKAO_ICON}<span>카카오로 시작하기</span></button>
-      <button class="sbtn google" data-auth="google" ${busy ? 'disabled' : ''}>${GOOGLE_ICON}<span>Google로 계속하기</span></button>
+    // 서버에 키가 설정된 로그인만 보여준다 (설정 안 된 버튼을 눌러 막히는 일이 없게)
+    return `${providers.kakao ? `<button class="sbtn kakao" data-auth="kakao" ${busy ? 'disabled' : ''}>${KAKAO_ICON}<span>카카오로 시작하기</span></button>` : ''}
+      ${providers.google ? `<button class="sbtn google" data-auth="google" ${busy ? 'disabled' : ''}>${GOOGLE_ICON}<span>Google로 계속하기</span></button>` : ''}
       <button class="sbtn email" data-auth="toEmail" ${busy ? 'disabled' : ''}>${MAIL_ICON}<span>이메일로 시작하기</span></button>
       ${noticeHtml()}
       <p class="auth-fine">시작하면 <a href="${PRIVACY_URL}" target="_blank" rel="noopener">개인정보처리방침</a>에 동의하는 것으로 봐요.</p>`;
@@ -241,6 +243,7 @@ async function init() {
     P.App.addListener('appUrlOpen', ev => handleRedirect(ev && ev.url));
   }
   if (!configured) { view = 'setup'; show(); return; }
+  api('health', null, 'GET').then(h => { if (h && h.ok) { providers = { kakao: !!h.kakao, google: !!h.google }; if (el && !el.hidden && view === 'start') show(); } });
   if (token) {
     try { user = JSON.parse(store.get(USER_KEY) || 'null'); } catch (e) { user = null; }
     const r = await api('me', null, 'GET');

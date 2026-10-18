@@ -409,7 +409,7 @@ function renderMapUi() {
 }
 
 /* ---------- screens ---------- */
-const TABS = [['map', '지도', I.map], ['schedule', '급식 일정', I.clock], ['share', '함께', I.people], ['board', '이웃', I.chat], ['detective', '탐정모드', I.search]];
+const TABS = [['map', '지도', I.map], ['schedule', '급식 일정', I.clock], ['share', '함께', I.people], ['detective', '탐정모드', I.search]];
 function renderTabs() {
   $('#tabs').hidden = !!R.screen;
   $('#tabs').innerHTML = TABS.map(([k, l, ic]) => `<button data-act="tab" data-v="${k}" ${R.tab === k && !R.screen ? 'aria-current="page"' : ''}>${ic}${l}${k === 'share' && SH.pending ? `<span class="nb" aria-label="받은 부탁 ${SH.pending}건">${SH.pending}</span>` : ''}${k === 'detective' && LS.unread ? `<span class="nb" aria-label="새 유실묘 알림 ${LS.unread}건">${LS.unread}</span>` : ''}</button>`).join('');
