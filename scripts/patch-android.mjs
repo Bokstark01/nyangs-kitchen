@@ -63,7 +63,7 @@ strings = strings
   .replace(/<string name="title_activity_main">[^<]*<\/string>/, `<string name="title_activity_main">냥\\'s 키친</string>`);
 fs.writeFileSync(stringsPath, strings);
 
-// 아이콘: 적응형 아이콘(녹색 배경 + 웃는 고양이)과 예전 기기용 PNG 아이콘으로 바꾼다
+// 아이콘: 적응형 아이콘(라벤더 그라데이션 배경 + 밥그릇 앞 고양이)과 예전 기기용 PNG 아이콘으로 바꾼다
 const res = path.join(main, 'res');
 fs.rmSync(path.join(res, 'mipmap-anydpi-v26'), { recursive: true, force: true });
 for (const dpi of ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi', 'anydpi-v26']) {
@@ -75,7 +75,14 @@ for (const dpi of ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi', 'anydpi-v26']) 
 
 // 시작 화면: 라벤더 배경 + 밥그릇 앞 고양이 (웹 인트로와 같은 그림)
 const splashGreen = '#8E7CF6';
-fs.writeFileSync(path.join(res, 'values/nk_colors.xml'), `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="nk_splash">${splashGreen}</color>\n    <color name="nk_icon_bg">#2F6B4F</color>\n</resources>\n`);
+fs.writeFileSync(path.join(res, 'values/nk_colors.xml'), `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="nk_splash">${splashGreen}</color>\n    <color name="nk_icon_bg">#8E7CF6</color>\n</resources>\n`);
+// 앱 아이콘 배경: 라벤더 → 복숭아 그라데이션 (밀크티 파스텔)
+fs.mkdirSync(path.join(res, 'drawable'), { recursive: true });
+fs.writeFileSync(path.join(res, 'drawable/nk_icon_bg.xml'), `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient android:type="linear" android:angle="315" android:startColor="#8E7CF6" android:centerColor="#B79BFF" android:endColor="#FFB8A0" />
+</shape>
+`);
 for (const d of fs.readdirSync(res)) {
   const f = path.join(res, d, 'splash.png');
   if (d.startsWith('drawable') && fs.existsSync(f)) fs.rmSync(f);
