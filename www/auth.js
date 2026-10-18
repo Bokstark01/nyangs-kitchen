@@ -271,17 +271,22 @@ window.NK_AUTH = {
   provider: () => PROVIDER_LABEL[providerOf(user)] || providerOf(user),
   onChange: f => listeners.push(f),
   handleBack,
-  // 로그인이 필요한 기능들: share.php(이웃과 함께) · backup.php(급식소 백업) · lost.php(탐정모드)
-  async call(file, action, data, method) {
+  // 로그인이 필요한 기능들: share.php(이웃과 함께) · backup.php(급식소 백업) · lost.php(탐정모드) · board.php(이웃 게시판)
+  async call(file, action, data, method, query) {
     if (!configured) return { error: 'not_configured', message: '서버가 연결되지 않은 테스트 버전이에요.' };
     if (!token) return { error: 'unauthorized', message: '로그인해 주세요.', status: 401 };
-    const r = await api(action, data, method, file);
+    const r = await api(action, data, method, file, query);
     if (r.status === 401) signedOut();
     return r;
   },
   share(action, data, method) { return window.NK_AUTH.call('share.php', action, data, method); },
   backup(action, data, method) { return window.NK_AUTH.call('backup.php', action, data, method); },
   lost(action, data, method) { return window.NK_AUTH.call('lost.php', action, data, method); },
+  // 이웃 게시판: GET은 query 객체를 주소 뒤에 붙인다
+  board(action, data, method, query) {
+    const q = query ? Object.entries(query).filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => `&${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('') : '';
+    return window.NK_AUTH.call('board.php', action, data, method, q);
+  },
   async blobUrl(path) {   // 예: 'share.php?action=photo&share_id=1&f=a.jpg'
     if (!configured || !token) return null;
     try {

@@ -195,3 +195,4 @@ function http_call(string $method, string $url, array $form = [], array $headers
 
 require __DIR__ . '/share.php';
 require __DIR__ . '/lost.php';
+require __DIR__ . '/board.php';

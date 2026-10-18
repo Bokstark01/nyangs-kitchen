@@ -166,7 +166,7 @@ try {
         page_head('유실 신고');
         $flash = (string)($_SESSION['flash'] ?? ''); unset($_SESSION['flash']);
         $c = h(csrf());
-        echo '<header><b>냥\'s 키친 관리자</b><nav><a href="admin.php">지도</a><a href="admin.php?p=lost" class="on">유실 신고</a><a href="admin.php?p=log">열람 기록</a><a href="admin.php?p=logout">로그아웃</a></nav></header><main class="pad">';
+        echo admin_nav('lost') . '<main class="pad">';
         if ($flash) echo '<p class="flash">' . h($flash) . '</p>';
         echo '<h2>유실 신고</h2><p class="muted">보호자 정보와 사진·특징을 확인한 뒤 <b>50m 알림</b>을 보내고, 소식이 없으면 <b>100m로 넓히기</b>를 누르세요. 급식소 위치는 보호자에게 보이지 않아요.</p>';
         if (!$rows) echo '<p class="muted">아직 신고가 없어요.</p>';
@@ -197,6 +197,75 @@ try {
         exit;
     }
 
+    /* ---------- 이웃 게시판 ---------- */
+    if ($p === 'boardphoto') {
+        $post = find_post((int)($_GET['id'] ?? 0));
+        $f = (string)($_GET['f'] ?? '');
+        if (!$post || !preg_match('/^[a-f0-9]{32}\.jpg$/', $f) || !is_file(board_photo_dir((int)$post['id']) . "/$f")) { http_response_code(404); exit; }
+        header('Content-Type: image/jpeg'); readfile(board_photo_dir((int)$post['id']) . "/$f"); exit;
+    }
+    if ($p === 'board_act' && $method === 'POST') {
+        check_csrf();
+        $id = (int)($_POST['id'] ?? 0); $do = (string)($_POST['do'] ?? ''); $kind = ($_POST['kind'] ?? '') === 'comment' ? 'comment' : 'post';
+        $table = $kind === 'comment' ? 'nk_comments' : 'nk_posts';
+        $st = $db->prepare("SELECT * FROM $table WHERE id = ?"); $st->execute([$id]); $t = $st->fetch();
+        if ($t) {
+            if ($do === 'hide') $db->prepare("UPDATE $table SET hidden = 2 WHERE id = ?")->execute([$id]);
+            elseif ($do === 'show') {   // 문제없음: 다시 보이고 신고 기록을 비운다
+                $db->prepare("UPDATE $table SET hidden = 0, report_count = 0 WHERE id = ?")->execute([$id]);
+                $db->prepare('DELETE FROM nk_board_reports WHERE kind = ? AND target_id = ?')->execute([$kind, $id]);
+            } elseif ($do === 'delete') { $kind === 'comment' ? delete_comment($id) : delete_post($id); }
+            if ($kind === 'comment' && $do !== 'delete') board_recount((int)$t['post_id']);
+            alog('board_' . $do, "$kind #$id");
+            $_SESSION['flash'] = ($kind === 'comment' ? '댓글' : '글') . " #$id: " . ['hide' => '숨겼어요', 'show' => '다시 보이게 했어요', 'delete' => '지웠어요'][$do] ?? '';
+        }
+        header('Location: admin.php?p=board' . (($_POST['all'] ?? '') === '1' ? '&all=1' : '')); exit;
+    }
+    if ($p === 'board') {
+        alog('view_board');
+        $all = ($_GET['all'] ?? '') === '1';
+        $rows = $db->query('SELECT p.*, u.nickname, u.email, u.provider FROM nk_posts p LEFT JOIN nk_users u ON u.id = p.user_id '
+            . ($all ? '' : 'WHERE p.hidden = 1 OR p.report_count > 0 OR p.id IN (SELECT post_id FROM nk_comments WHERE hidden = 1 OR report_count > 0) OR p.created_at > ' . (now() - 3 * 86400) . ' ')
+            . 'ORDER BY CASE WHEN p.hidden = 1 THEN 0 WHEN p.report_count > 0 THEN 1 ELSE 2 END, p.id DESC LIMIT 100')->fetchAll();
+        page_head('게시판 관리');
+        $flash = (string)($_SESSION['flash'] ?? ''); unset($_SESSION['flash']);
+        $c = h(csrf());
+        $btn = function (string $kind, int $id, string $do, string $label, bool $ghost = false) use ($c, $all) {
+            return '<form method="post" action="admin.php?p=board_act"' . ($do === 'delete' ? ' onsubmit="return confirm(\'지울까요? 되돌릴 수 없어요.\')"' : '') . '><input type="hidden" name="csrf" value="' . $c . '"><input type="hidden" name="kind" value="' . $kind . '"><input type="hidden" name="id" value="' . $id . '"><input type="hidden" name="do" value="' . $do . '"><input type="hidden" name="all" value="' . ($all ? 1 : 0) . '"><button' . ($ghost ? ' class="ghost"' : '') . '>' . $label . '</button></form>';
+        };
+        $hiddenText = [0 => '', 1 => '<span class="st st-pending">신고 누적 숨김</span>', 2 => '<span class="st">운영자 숨김</span>'];
+        echo admin_nav('board') . '<main class="pad">';
+        if ($flash) echo '<p class="flash">' . h($flash) . '</p>';
+        echo '<h2>이웃 게시판</h2><p class="muted">서로 다른 ' . NK_BOARD_HIDE_AT . '명이 신고하면 자동으로 숨겨져요. 확인 후 <b>문제없음</b>(다시 보이기·신고 비우기), <b>숨기기</b>, <b>지우기</b> 중에 고르세요. '
+           . ($all ? '<a href="admin.php?p=board">신고·최근 3일만 보기</a>' : '지금은 신고된 글과 최근 3일 글만 보여요. <a href="admin.php?p=board&all=1">전체 보기</a>') . '</p>';
+        if (!$rows) echo '<p class="muted">보여줄 글이 없어요.</p>';
+        foreach ($rows as $r) {
+            $id = (int)$r['id'];
+            $photos = json_decode((string)$r['photos'], true) ?: [];
+            $rep = $db->prepare("SELECT reason FROM nk_board_reports WHERE kind = 'post' AND target_id = ? ORDER BY id");
+            $rep->execute([$id]);
+            $reasons = array_filter(array_column($rep->fetchAll(), 'reason'));
+            echo '<article class="lost"><div class="bd">'
+               . '<b>#' . $id . ' [' . h(NK_BOARD_CATS[$r['category']] ?? $r['category']) . ']</b> ' . ($hiddenText[(int)$r['hidden']] ?? '') . ((int)$r['report_count'] ? ' <span class="st st-pending">신고 ' . (int)$r['report_count'] . '</span>' : '')
+               . '<p>' . nl2br(h($r['body'])) . '</p>'
+               . ($photos ? '<div class="thumbs">' . implode('', array_map(fn($f) => '<a href="admin.php?p=boardphoto&id=' . $id . '&f=' . h($f) . '" target="_blank"><img src="admin.php?p=boardphoto&id=' . $id . '&f=' . h($f) . '" alt=""></a>', $photos)) . '</div>' : '')
+               . '<p class="muted">' . h($r['nickname'] ?? '탈퇴') . ' (회원 #' . (int)$r['user_id'] . ', ' . h($r['email'] ?: $r['provider'] . ' 로그인') . ') · ' . h($r['area'] ?: '위치 없음') . ' · ' . h(date('m/d H:i', (int)$r['created_at'])) . ' · 댓글 ' . (int)$r['comment_count'] . '</p>'
+               . ($reasons ? '<p class="muted">신고 이유: ' . h(implode(' / ', $reasons)) . '</p>' : '')
+               . '<div class="acts">' . ((int)$r['hidden'] || (int)$r['report_count'] ? $btn('post', $id, 'show', '문제없음') : '') . ((int)$r['hidden'] !== 2 ? $btn('post', $id, 'hide', '숨기기', true) : '') . $btn('post', $id, 'delete', '지우기', true) . '</div>';
+            $cs = $db->prepare('SELECT c.*, u.nickname FROM nk_comments c LEFT JOIN nk_users u ON u.id = c.user_id WHERE c.post_id = ? ORDER BY c.id');
+            $cs->execute([$id]);
+            foreach ($cs->fetchAll() as $cm) {
+                $cid = (int)$cm['id']; $flag = (int)$cm['hidden'] || (int)$cm['report_count'];
+                echo '<div class="reply"' . ($flag ? ' style="background:#FBE9DD"' : '') . '>' . h($cm['nickname'] ?? '탈퇴') . ' (#' . (int)$cm['user_id'] . ') · ' . h(date('m/d H:i', (int)$cm['created_at'])) . ' — ' . h($cm['body'])
+                   . ($flag ? ' ' . ($hiddenText[(int)$cm['hidden']] ?? '') . ((int)$cm['report_count'] ? ' <span class="st st-pending">신고 ' . (int)$cm['report_count'] . '</span>' : '') : '')
+                   . '<div class="acts">' . ($flag ? $btn('comment', $cid, 'show', '문제없음') : '') . ((int)$cm['hidden'] !== 2 ? $btn('comment', $cid, 'hide', '숨기기', true) : '') . $btn('comment', $cid, 'delete', '지우기', true) . '</div></div>';
+            }
+            echo '</div></article>';
+        }
+        echo '</main></body></html>';
+        exit;
+    }
+
     /* ---------- 화면 ---------- */
     $stat = fn(string $sql) => (int)$db->query($sql)->fetchColumn();
     $users = $stat('SELECT COUNT(*) FROM nk_users');
@@ -209,23 +278,23 @@ try {
         alog('view_log');
         $rows = $db->query('SELECT * FROM nk_admin_log ORDER BY id DESC LIMIT 300')->fetchAll();
         page_head('관리자 기록');
-        echo '<header><b>냥\'s 키친 관리자</b><nav><a href="admin.php">지도</a><a href="admin.php?p=lost">유실 신고</a><a href="admin.php?p=log" class="on">열람 기록</a><a href="admin.php?p=logout">로그아웃</a></nav></header><main class="pad"><h2>최근 관리자 기록 300건</h2><table><tr><th>시각</th><th>IP</th><th>동작</th><th>내용</th></tr>';
+        echo admin_nav('log') . '<main class="pad"><h2>최근 관리자 기록 300건</h2><table><tr><th>시각</th><th>IP</th><th>동작</th><th>내용</th></tr>';
         foreach ($rows as $r) echo '<tr><td>' . h(date('Y-m-d H:i', (int)$r['at'])) . '</td><td>' . h($r['ip']) . '</td><td>' . h($r['action']) . '</td><td>' . h($r['detail']) . '</td></tr>';
         echo '</table></main></body></html>';
         exit;
     }
 
-    $pend = $stat("SELECT COUNT(*) FROM nk_lost WHERE status = 'pending'");
-    $pendingBadge = $pend ? " ({$pend})" : '';
+    $posts = $stat('SELECT COUNT(*) FROM nk_posts');
     page_head('관리자');
     $csrf = h(csrf());
+    echo admin_nav('');
     echo <<<HTML
-<header><b>냥's 키친 관리자</b><nav><a href="admin.php" class="on">지도</a><a href="admin.php?p=lost">유실 신고{$pendingBadge}</a><a href="admin.php?p=log">열람 기록</a><a href="admin.php?p=logout">로그아웃</a></nav></header>
 <section class="stats">
   <div><span>회원</span><b>{$users}</b><small>최근 7일 +{$new7}</small></div>
   <div><span>백업 동의</span><b>{$consented}</b><small>명</small></div>
   <div><span>백업된 급식소</span><b>{$points}</b><small>곳 (지도 표시)</small></div>
   <div><span>공유 중인 급식소</span><b>{$shares}</b><small>곳 (내용은 보지 않음)</small></div>
+  <div><span>게시판 글</span><b>{$posts}</b><small>개</small></div>
 </section>
 <section class="split">
   <div id="map"></div>
@@ -302,12 +371,21 @@ HTML;
     echo '서버 오류가 났어요.';
 }
 
+function admin_nav(string $on): string {
+    $n = (int)db()->query("SELECT COUNT(*) FROM nk_lost WHERE status = 'pending'")->fetchColumn();
+    $b = (int)db()->query('SELECT (SELECT COUNT(*) FROM nk_posts WHERE hidden = 1 OR (hidden = 0 AND report_count > 0)) + (SELECT COUNT(*) FROM nk_comments WHERE hidden = 1 OR (hidden = 0 AND report_count > 0))')->fetchColumn();
+    $items = ['' => '지도', 'lost' => '유실 신고' . ($n ? " ($n)" : ''), 'board' => '게시판' . ($b ? " (신고 $b)" : ''), 'log' => '열람 기록'];
+    $h = '';
+    foreach ($items as $k => $label) $h .= '<a href="admin.php' . ($k !== '' ? '?p=' . $k : '') . '"' . ($k === $on ? ' class="on"' : '') . '>' . h($label) . '</a>';
+    return '<header><b>냥\'s 키친 관리자</b><nav>' . $h . '<a href="admin.php?p=logout">로그아웃</a></nav></header>';
+}
+
 function page_head(string $title): void {
     header('Content-Type: text/html; charset=utf-8');
     echo '<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>' . h($title) . '</title><style>'
        . ':root{--g:#2F6B4F;--d:#1F4A36;--line:#D5DBD5;--bg:#F4F6F2}*{box-sizing:border-box}body{margin:0;font:15px/1.55 system-ui,"Noto Sans KR",sans-serif;background:var(--bg);color:#1D2B24}'
        . 'header{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;background:var(--d);color:#F4ECD6}header nav a{color:#F4ECD6;margin-left:14px;text-decoration:none;opacity:.8}header nav a.on{opacity:1;font-weight:700;text-decoration:underline}'
-       . '.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px 18px}.stats div{background:#fff;border-radius:12px;padding:12px 14px;display:flex;flex-direction:column}.stats span{font-size:13px;color:#56635C}.stats b{font-size:26px}.stats small{color:#56635C}'
+       . '.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:14px 18px}.stats div{background:#fff;border-radius:12px;padding:12px 14px;display:flex;flex-direction:column}.stats span{font-size:13px;color:#56635C}.stats b{font-size:26px}.stats small{color:#56635C}'
        . '.split{display:grid;grid-template-columns:1fr 380px;gap:12px;padding:0 18px 18px;height:calc(100vh - 190px);min-height:480px}#map{border-radius:12px;min-height:380px}aside{background:#fff;border-radius:12px;padding:14px;overflow:auto}aside h2{font-size:17px;margin:0 0 6px}'
        . 'input,select{border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;width:100%;min-width:0}.row{display:flex;gap:8px;margin-bottom:8px}button{background:var(--g);color:#fff;border:0;border-radius:10px;padding:11px 16px;font:inherit;font-weight:700;cursor:pointer;width:100%}'
        . '.hit{border-top:1px solid var(--line);padding:9px 0;display:flex;flex-direction:column;gap:2px}.hit span{font-size:13px;color:#56635C}.muted{color:#56635C;font-size:13px}.err{color:#A84A0C}'
@@ -315,7 +393,7 @@ function page_head(string $title): void {
        . '.pad{padding:18px}table{width:100%;border-collapse:collapse;background:#fff;font-size:13px}th,td{border-bottom:1px solid var(--line);padding:7px 9px;text-align:left}'
        . '.geo{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;background:#F4F6F2;color:#1D2B24;border:1px solid #D5DBD5;border-radius:10px;padding:8px 12px;margin-bottom:6px;text-align:left;font-weight:400}.geo span{font-size:12px;color:#56635C}.geo:hover{border-color:#2F6B4F}'
        . '.flash{background:#DDEBE2;padding:10px 14px;border-radius:10px}.lost{display:flex;gap:14px;background:#fff;border-radius:12px;padding:14px;margin:12px 0}.lost .ph{width:140px;flex-shrink:0}.lost img{width:140px;border-radius:10px}.lost .ph span{display:block;width:140px;height:100px;background:#EEF1EC;border-radius:10px;text-align:center;line-height:100px;color:#56635C;font-size:13px}.lost .bd{flex:1;min-width:0}.lost p{margin:6px 0}'
-       . '.acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.acts form{display:flex;gap:6px}.acts button{width:auto}.acts .rej input{width:220px}button.ghost{background:#fff;color:#A84A0C;border:1px solid #C2560F}.reply{background:#F4F6F2;border-radius:8px;padding:6px 10px;font-size:13px}'
+       . '.acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.acts form{display:flex;gap:6px}.acts button{width:auto}.acts .rej input{width:220px}button.ghost{background:#fff;color:#A84A0C;border:1px solid #C2560F}.reply{background:#F4F6F2;border-radius:8px;padding:6px 10px;font-size:13px;margin:6px 0}.reply .acts button{padding:5px 10px;font-size:12px}.thumbs{display:flex;gap:8px;flex-wrap:wrap}.thumbs img{width:150px;height:150px;object-fit:cover;border-radius:10px}'
        . '.st{font-size:12px;font-weight:700;padding:2px 8px;border-radius:8px;background:#EEF1EC}.st-pending{background:#FBE9DD;color:#A84A0C}.st-active{background:#DDEBE2;color:#1F4A36}'
        . '@media(max-width:800px){.stats{grid-template-columns:repeat(2,1fr)}.split{grid-template-columns:1fr;height:auto}#map{height:55vh}}'
        . '</style></head><body>';

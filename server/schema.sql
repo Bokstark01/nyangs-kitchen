@@ -166,3 +166,54 @@ CREATE TABLE IF NOT EXISTS nk_lost_replies (
   created_at INT UNSIGNED NOT NULL,
   KEY idx_lost (lost_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ===== 이웃 게시판 =====
+CREATE TABLE IF NOT EXISTS nk_posts (
+  id            INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id       INT UNSIGNED NOT NULL,
+  category      VARCHAR(10)  NOT NULL,                -- report | info | ask | free
+  body          TEXT         NOT NULL,
+  photos        TEXT         NOT NULL,                -- ["abc.jpg", …]
+  lat           DOUBLE       NULL,                    -- 100m 단위로 줄인 위치 (다른 사용자에게는 보내지 않음)
+  lng           DOUBLE       NULL,
+  area          VARCHAR(40)  NOT NULL DEFAULT '',     -- '마포구 망원1동'
+  comment_count INT UNSIGNED NOT NULL DEFAULT 0,
+  report_count  INT UNSIGNED NOT NULL DEFAULT 0,
+  hidden        TINYINT      NOT NULL DEFAULT 0,      -- 1 신고 누적 숨김, 2 운영자 숨김
+  seen_cid      INT UNSIGNED NOT NULL DEFAULT 0,      -- 글쓴이가 마지막으로 본 댓글 번호
+  created_at    INT UNSIGNED NOT NULL,
+  KEY idx_created (created_at), KEY idx_user (user_id), KEY idx_geo (lat, lng)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS nk_comments (
+  id           INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  post_id      INT UNSIGNED NOT NULL,
+  user_id      INT UNSIGNED NOT NULL,
+  body         VARCHAR(500) NOT NULL,
+  report_count INT UNSIGNED NOT NULL DEFAULT 0,
+  hidden       TINYINT      NOT NULL DEFAULT 0,
+  created_at   INT UNSIGNED NOT NULL,
+  KEY idx_post (post_id), KEY idx_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS nk_board_reports (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  kind       VARCHAR(10)  NOT NULL,                   -- post | comment
+  target_id  INT UNSIGNED NOT NULL,
+  user_id    INT UNSIGNED NOT NULL,
+  reason     VARCHAR(200) NOT NULL DEFAULT '',
+  created_at INT UNSIGNED NOT NULL,
+  UNIQUE KEY uq_once (kind, target_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS nk_blocks (
+  user_id    INT UNSIGNED NOT NULL,
+  blocked_id INT UNSIGNED NOT NULL,
+  created_at INT UNSIGNED NOT NULL,
+  PRIMARY KEY (user_id, blocked_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS nk_regions (
+  k    VARCHAR(24) NOT NULL PRIMARY KEY,
+  name VARCHAR(40) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

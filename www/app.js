@@ -34,6 +34,9 @@ const I = {
   chat: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
   search: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>',
   ok: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>',
+  chatS: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
+  refresh: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>',
+  pen: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg>',
   arrow: '<svg width="22" height="12" viewBox="0 0 28 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M0 6h24"/><path d="M20 1l6 5-6 5"/></svg>'
 };
 
@@ -409,10 +412,10 @@ function renderMapUi() {
 }
 
 /* ---------- screens ---------- */
-const TABS = [['map', '지도', I.map], ['schedule', '급식 일정', I.clock], ['share', '함께', I.people], ['detective', '탐정모드', I.search]];
+const TABS = [['map', '지도', I.map], ['schedule', '급식 일정', I.clock], ['share', '함께', I.people], ['board', '이웃', I.chat], ['detective', '탐정모드', I.search]];
 function renderTabs() {
   $('#tabs').hidden = !!R.screen;
-  $('#tabs').innerHTML = TABS.map(([k, l, ic]) => `<button data-act="tab" data-v="${k}" ${R.tab === k && !R.screen ? 'aria-current="page"' : ''}>${ic}${l}${k === 'share' && SH.pending ? `<span class="nb" aria-label="받은 부탁 ${SH.pending}건">${SH.pending}</span>` : ''}${k === 'detective' && LS.unread ? `<span class="nb" aria-label="새 유실묘 알림 ${LS.unread}건">${LS.unread}</span>` : ''}</button>`).join('');
+  $('#tabs').innerHTML = TABS.map(([k, l, ic]) => `<button data-act="tab" data-v="${k}" ${R.tab === k && !R.screen ? 'aria-current="page"' : ''}>${ic}${l}${k === 'share' && SH.pending ? `<span class="nb" aria-label="받은 부탁 ${SH.pending}건">${SH.pending}</span>` : ''}${k === 'board' && BD.unread ? `<span class="nb" aria-label="내 글의 새 댓글 ${BD.unread}개">${BD.unread}</span>` : ''}${k === 'detective' && LS.unread ? `<span class="nb" aria-label="새 유실묘 알림 ${LS.unread}건">${LS.unread}</span>` : ''}</button>`).join('');
 }
 
 function scheduleScreen() {
@@ -496,12 +499,15 @@ function render() {
     if (R.screen === 'point') html = pointScreen();
     else if (R.screen === 'shared') html = sharedScreen();
     else if (R.screen === 'lostForm') html = lostFormScreen();
+    else if (R.screen === 'post') html = postScreen();
+    else if (R.screen === 'postForm') html = postFormScreen();
+    else if (R.tab === 'board') html = boardScreen();
     else if (R.tab === 'detective') html = detectiveScreen();
     else if (R.tab === 'schedule') html = scheduleScreen();
     else if (R.tab === 'share') html = shareScreen();
     else html = soonScreen(R.tab);
     $('#view').innerHTML = html;
-    setTimeout(() => { hydratePhotos(); hydrateLostPhotos(); }, 0);
+    setTimeout(() => { hydratePhotos(); hydrateLostPhotos(); hydrateBoardPhotos(); }, 0);
   }
   renderTabs();
 }
@@ -533,6 +539,7 @@ function settingsSheet() {
     ${AU && AU.user() ? `<div class="card"><div class="between"><span><b>급식소 서버 백업</b></span>${sw('bkSw', BK.consent === true, 'backupToggle')}</div>
       <span class="small muted">${BK.consent === true ? `켜짐 · 급식소 ${BK.count}곳 백업됨. 사진은 올리지 않아요. 끄면 서버 기록이 바로 지워져요.` : '꺼짐 · 휴대폰을 바꾸면 급식소를 복원할 수 없고, 근처 유실묘 알림을 받지 않아요.'}</span>
       ${BK.consent === true ? `<button class="btn sm" data-act="restoreGo">백업에서 불러오기</button>` : ''}</div>` : ''}
+    ${AU && AU.user() ? `<button class="btn" data-act="blocksSheet">차단한 이웃 관리</button>` : ''}
     <div class="card"><div class="between"><span>급식 포인트</span><b>${S.points.length}곳</b></div><div class="between"><span>등록한 고양이</span><b>${cats}마리</b></div><div class="between"><span>급식 주의 구역</span><b>${S.zones.length}곳</b></div></div>
     <div class="field"><label for="keyInput2">카카오 지도 JavaScript 키 (선택)</label><input id="keyInput2" value="${esc(S.kakaoKey)}" placeholder="${kakaoKey() ? '빌드에 들어간 키 사용 중' : '없으면 기본 지도를 써요'}" autocapitalize="off" autocomplete="off" spellcheck="false"></div>
     <button class="btn" data-act="saveKey2">키 저장</button>
@@ -1087,9 +1094,310 @@ const LA = {
   }
 };
 
+/* ---------- 이웃 게시판 ----------
+   글·사진·댓글은 서버에 올라가 앱을 쓰는 모든 사람이 볼 수 있다.
+   위치는 '동네 표시'를 켰을 때만 100m 단위로 줄여 올리고, 다른 사람에게는 동네 이름과 대략 거리만 보인다.
+   신고(3명이면 자동 숨김)·차단·내 글 지우기를 지원한다. */
+const BOARD_CATS = { report: '제보', info: '정보', ask: '질문', free: '자유' };
+const BOARD_HINT = {
+  report: '예: 망원시장 뒷골목에서 다리를 저는 치즈냥을 봤어요. 오늘 저녁 7시쯤이에요.',
+  info: '예: 동물병원 길고양이 중성화(TNR) 신청 방법 공유해요',
+  ask: '예: 겨울 급식소 물이 얼지 않게 하는 방법 있을까요?',
+  free: '동네 고양이 이야기를 자유롭게 나눠요'
+};
+const BD = { loaded: false, loading: false, error: '', posts: [], next: null, unread: 0, mode: 'near', cat: '', pos: null, posTried: false, post: null, comments: [], postLoading: false };
+const BF = { cat: 'report', body: '', photos: [], loc: true };
+
+async function boardPos() {
+  // 위치 권한은 이웃 탭을 열었을 때만 묻는다. 그 전에는 지도 중심이나 내 급식소로 대신한다.
+  // 서버에는 목록을 고를 때 약 1km 단위(소수 둘째 자리)로만 보낸다.
+  if (!BD.posGps && !BD.posTried && R.tab === 'board') {
+    BD.posTried = true;
+    const p = await getPosition();
+    if (p) { BD.pos = p; BD.posGps = true; }
+  }
+  if (!BD.pos && S.center && S.center.lat) BD.pos = { lat: S.center.lat, lng: S.center.lng };
+  if (!BD.pos && S.points.length) BD.pos = { lat: S.points[0].lat, lng: S.points[0].lng };
+  return BD.pos;
+}
+async function loadBoard(more) {
+  if (!canShare() || BD.loading) return;
+  BD.loading = true;
+  const pos = await boardPos();
+  if (BD.mode === 'near' && !pos) { BD.mode = 'all'; }
+  const q = { cat: BD.cat === 'mine' ? '' : BD.cat, mine: BD.cat === 'mine' ? 1 : '', near: BD.mode === 'near' ? 1 : '', lat: pos ? pos.lat.toFixed(2) : '', lng: pos ? pos.lng.toFixed(2) : '', before: more ? BD.next : '' };
+  const r = await AU().board('list', null, 'GET', q);
+  BD.loading = false; BD.loaded = true;
+  if (r.error) { BD.error = r.message; }
+  else { BD.error = ''; BD.posts = more ? BD.posts.concat(r.posts) : r.posts; BD.next = r.next; BD.unread = r.unread; }
+  if (R.tab === 'board' && !R.screen) render(); else renderTabs();
+}
+async function loadPost(id) {
+  BD.postLoading = true;
+  const pos = BD.pos;
+  const r = await AU().board('post', null, 'GET', { id, lat: pos ? pos.lat.toFixed(2) : '', lng: pos ? pos.lng.toFixed(2) : '' });
+  BD.postLoading = false;
+  if (r.error) { toast(r.message); BD.post = null; R.screen = null; BD.posts = BD.posts.filter(p => p.id !== Number(id)); render(); return; }
+  BD.post = r.post; BD.comments = r.comments;
+  const li = BD.posts.find(p => p.id === r.post.id); if (li) li.comments = r.post.comments;
+  if (r.post.mine && BD.unread) { BD.unread = 0; loadBoard(); }
+  if (R.screen === 'post') render();
+}
+const bphoto = (pid, f, cls) => `<div class="${cls || 'bph'}" data-bphoto="${pid}/${esc(f)}"></div>`;
+function hydrateBoardPhotos() {
+  if (!AU()) return;
+  document.querySelectorAll('[data-bphoto]').forEach(async el => {
+    const [id, f] = el.dataset.bphoto.split('/');
+    const k = 'board/' + el.dataset.bphoto;
+    photoCache[k] = photoCache[k] || AU().blobUrl(`board.php?action=photo&id=${encodeURIComponent(id)}&f=${encodeURIComponent(f)}`);
+    const u = await photoCache[k];
+    if (u) { el.style.backgroundImage = `url('${u}')`; el.dataset.src = u; }
+  });
+}
+function postMeta(p) {
+  return [p.area || '', p.dist || '', fmtAgo(p.created_at)].filter(Boolean).map(esc).join(' · ');
+}
+function boardCard(p) {
+  const ph = p.photos.slice(0, 3);
+  return `<button class="card post" data-act="openPost" data-v="${p.id}">
+    <div class="between"><span class="chip ${p.cat === 'report' ? 'warnchip' : ''}">${esc(p.cat_name)}</span><span class="small muted">${postMeta(p)}</span></div>
+    ${p.hidden ? `<span class="small" style="color:var(--warn-ink)">신고가 쌓여 다른 이웃에게는 숨겨졌어요. 운영자가 확인하고 있어요.</span>` : ''}
+    ${p.body ? `<p class="pbody">${esc(p.body)}</p>` : ''}
+    ${ph.length ? `<div class="pthumbs">${ph.map((f, i) => `<div class="bthumb" data-bphoto="${p.id}/${esc(f)}">${i === 2 && p.photos.length > 3 ? `<span>+${p.photos.length - 3}</span>` : ''}</div>`).join('')}</div>` : ''}
+    <div class="between"><span class="small muted">${esc(p.author)}${p.mine ? ' (나)' : ''}</span><span class="small muted row" style="gap:4px">${I.chatS}${p.comments}</span></div>
+  </button>`;
+}
+function boardScreen() {
+  const head = `<header class="topbar"><div><div class="brand">이웃</div><div class="where">동네 집사들과 제보·정보를 나눠요</div></div>${canShare() ? `<button class="iconbtn" data-act="boardReload" aria-label="새로고침">${I.refresh}</button>` : ''}</header>`;
+  if (!AU() || !AU().configured) return head + `<div class="pad"><div class="empty">서버가 연결되지 않은 테스트 버전이라 게시판을 쓸 수 없어요.</div></div>`;
+  if (!AU().user()) return head + `<div class="pad"><div class="empty">로그인하면 동네 이웃과 글을 나눌 수 있어요.</div><button class="btn primary" data-act="logout">로그인하기</button></div>`;
+  if (!BD.loaded) { loadBoard(); return head + `<div class="pad"><div class="empty">불러오는 중…</div></div>`; }
+  const cats = [['', '전체'], ['report', '제보'], ['info', '정보'], ['ask', '질문'], ['free', '자유'], ['mine', '내 글']];
+  return head + `<div class="pad" style="gap:14px">
+    <div class="seg" role="group" aria-label="보기 범위"><button data-act="boardMode" data-v="near" aria-pressed="${BD.mode === 'near'}">내 근처 5km</button><button data-act="boardMode" data-v="all" aria-pressed="${BD.mode === 'all'}">전체</button></div>
+    <div class="catrow" role="group" aria-label="글 종류">${cats.map(([k, l]) => `<button data-act="boardCat" data-v="${k}" aria-pressed="${BD.cat === k}">${l}</button>`).join('')}</div>
+    <button class="btn primary" data-act="postNew">${I.pen} 글쓰기</button>
+    ${BD.error ? `<div class="card"><span class="small" style="color:var(--warn-ink)">${esc(BD.error)}</span><button class="btn sm" data-act="boardReload">다시 불러오기</button></div>` : ''}
+    ${BD.posts.length ? BD.posts.map(boardCard).join('') : `<div class="empty">${BD.mode === 'near' ? '5km 안에 아직 글이 없어요.<br>첫 소식을 남겨보세요!' : '아직 글이 없어요.'}</div>`}
+    ${BD.next ? `<button class="btn" data-act="boardMore">더 보기</button>` : ''}
+  </div>`;
+}
+function postScreen() {
+  const p = BD.post;
+  const nav = `<div class="navbar"><button class="back" data-act="back" aria-label="뒤로">${I.back}</button><h1>이웃 글</h1>${p ? `<button class="back" data-act="postMenu" aria-label="글 메뉴">${I.more}</button>` : ''}</div>`;
+  if (!p) return nav + `<div class="pad"><div class="empty">불러오는 중…</div></div>`;
+  return nav + `<div class="pad" style="gap:14px">
+    <div class="between"><span class="chip ${p.cat === 'report' ? 'warnchip' : ''}">${esc(p.cat_name)}</span><span class="small muted">${postMeta(p)}</span></div>
+    <b>${esc(p.author)}${p.mine ? ' (나)' : ''}</b>
+    ${p.hidden ? `<div class="card"><span class="small" style="color:var(--warn-ink)">신고가 쌓여 다른 이웃에게는 숨겨졌어요. 운영자가 확인한 뒤 다시 보이거나 지워져요.</span></div>` : ''}
+    ${p.body ? `<p class="pbody full">${esc(p.body)}</p>` : ''}
+    ${p.photos.map(f => `<button class="bbig" data-act="photoView" data-bphoto="${p.id}/${esc(f)}" aria-label="사진 크게 보기"></button>`).join('')}
+    <section class="card" style="gap:0">
+      <h3 class="h-sec" style="padding-bottom:4px">댓글 ${BD.comments.length}</h3>
+      ${BD.comments.length ? BD.comments.map(c => `<div class="cmt">
+        <div class="between"><b class="small">${esc(c.author)}${c.by_writer ? ' <span class="chip" style="padding:1px 6px;font-size:10px">글쓴이</span>' : ''}${c.mine ? ' (나)' : ''}</b>
+          <div class="row" style="gap:0"><span class="small muted">${fmtAgo(c.created_at)}</span><button class="iconsm" data-act="cmtMenu" data-v="${c.id}" aria-label="댓글 메뉴">${I.more}</button></div></div>
+        ${c.hidden ? `<span class="small" style="color:var(--warn-ink)">신고로 숨겨진 댓글이에요 (나에게만 보여요)</span>` : ''}
+        <p>${esc(c.body)}</p></div>`).join('') : `<div class="empty" style="padding:12px 0">첫 댓글을 남겨보세요</div>`}
+    </section>
+  </div>
+  ${p.hidden ? '' : `<div class="actions cmtbar"><input id="cmtInput" maxlength="500" placeholder="댓글을 적어주세요" aria-label="댓글"><button class="btn primary" data-act="cmtSend">등록</button></div>`}`;
+}
+function postFormScreen() {
+  return `<div class="navbar"><button class="back" data-act="back" aria-label="뒤로">${I.back}</button><h1>글쓰기</h1></div>
+  <div class="pad" style="gap:16px">
+    <div class="seg" role="group" aria-label="글 종류">${Object.entries(BOARD_CATS).map(([k, l]) => `<button data-act="bfCat" data-v="${k}" aria-pressed="${BF.cat === k}">${l}</button>`).join('')}</div>
+    <div class="field"><label for="bfBody">내용</label><textarea id="bfBody" rows="7" maxlength="2000" placeholder="${esc(BOARD_HINT[BF.cat])}">${esc(BF.body)}</textarea></div>
+    <div class="field"><label>사진 (최대 4장)</label>
+      <div class="pgrid">${BF.photos.map((s, i) => `<div class="pthumb" style="background-image:url('${s}')"><button data-act="bfDelPhoto" data-v="${i}" aria-label="사진 ${i + 1} 빼기">×</button></div>`).join('')}
+        ${BF.photos.length < 4 ? `<button class="addcat" data-act="bfAddPhoto">${I.plus}사진</button>` : ''}</div>
+      <span class="small muted">사진은 줄여서 올리고, 사진 속 위치 정보(GPS)는 지워요.</span></div>
+    <div class="card"><div class="between"><span><b>동네 표시</b></span>${sw('bfLoc', BF.loc, 'bfLoc')}</div>
+      <span class="small muted">${BF.loc ? '지금 위치로 동네 이름(예: 망원1동)만 보여요. 정확한 위치는 다른 이웃에게 보이지 않아요.' : '위치 없이 올려요. ‘내 근처’ 목록에는 나오지 않아요.'}</span></div>
+    <div class="store"><div class="ic">${I.warn}</div><div><b>고양이를 지켜주세요</b><span class="small muted">급식소의 정확한 위치, 집 주소, 전화번호는 적지 마세요. 학대가 의심되면 112나 지자체 동물보호 담당에 먼저 신고해 주세요.</span></div></div>
+  </div>
+  <div class="actions"><button class="btn primary" data-act="postSubmit">올리기</button></div>`;
+}
+function readPostForm() { const e = $('#bfBody'); if (e) BF.body = e.value; }
+// 게시판용 사진: 긴 변 1280px JPEG, 450KB를 넘지 않게 화질을 낮춘다 (캔버스로 다시 그려 사진 속 위치 정보도 빠진다)
+function boardJpeg(src) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 1280 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      try {
+        for (const q of [0.8, 0.7, 0.6, 0.5, 0.4]) { const d = c.toDataURL('image/jpeg', q); if (d.length < 590000) return res(d); }
+        res(null);
+      } catch (e) { res(null); }
+    };
+    img.onerror = () => res(null);
+    img.src = src;
+  });
+}
+// 여러 장 고르기 (앱: 앨범 여러 장 또는 카메라, 웹: 파일 여러 개)
+async function pickPhotos(max) {
+  if (isNative && P.Camera) {
+    const how = await new Promise(res => {
+      window.__pickHow = res;
+      sheet(`<h2>사진 추가</h2><button class="btn primary" data-act="pickHow" data-v="album">앨범에서 고르기 (여러 장)</button><button class="btn" data-act="pickHow" data-v="camera">사진 찍기</button><button class="btn" data-act="pickHow" data-v="">취소</button>`);
+    });
+    closeSheet();
+    if (!how) return [];
+    try {
+      if (how === 'camera') {
+        const r = await P.Camera.getPhoto({ quality: 85, width: 1600, correctOrientation: true, resultType: 'base64', source: 'CAMERA', saveToGallery: false });
+        return [`data:image/${r.format || 'jpeg'};base64,${r.base64String}`];
+      }
+      const r = await P.Camera.pickImages({ quality: 85, width: 1600, correctOrientation: true, limit: max });
+      return (r.photos || []).slice(0, max).map(p => p.webPath);
+    } catch (e) {
+      if (!/cancel|no image/i.test(String(e && e.message))) toast('사진을 가져오지 못했어요. 사진 권한을 확인해 주세요');
+      return [];
+    }
+  }
+  return new Promise(res => {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = true; inp.hidden = true;
+    document.body.appendChild(inp);
+    inp.onchange = async () => {
+      const files = Array.from(inp.files || []).slice(0, max);
+      const out = await Promise.all(files.map(f => new Promise(r => { const rd = new FileReader(); rd.onload = () => r(rd.result); rd.onerror = () => r(null); rd.readAsDataURL(f); })));
+      inp.remove(); res(out.filter(Boolean));
+    };
+    inp.click();
+  });
+}
+function rulesSheet(then) {
+  sheet(`<h2>이웃 게시판 약속</h2>
+    <div class="card" style="gap:8px">
+      <div class="row" style="align-items:flex-start">${I.ok}<span>서로 존중해요. 욕설·비방·혐오 표현은 지워요.</span></div>
+      <div class="row" style="align-items:flex-start">${I.ok}<span>급식소의 <b>정확한 위치</b>나 연락처·주소는 올리지 않아요. 고양이를 해치려는 사람이 볼 수 있어요.</span></div>
+      <div class="row" style="align-items:flex-start">${I.ok}<span>광고·판매·분양 글, 동물 학대 장면은 올리지 않아요.</span></div>
+      <div class="row" style="align-items:flex-start">${I.ok}<span>문제 있는 글은 <b>신고</b>해 주세요. 3명이 신고하면 바로 숨겨지고 운영자가 확인해요. 보기 싫은 이웃은 <b>차단</b>할 수 있어요.</span></div>
+    </div>
+    <p class="small muted" style="margin:0;line-height:1.6">올린 글과 사진은 앱을 쓰는 모든 이웃이 볼 수 있어요. 약속을 어기면 운영자가 글을 지우거나 이용을 제한할 수 있어요.</p>
+    <button class="btn primary" data-act="rulesOk" data-v="${then || ''}">약속할게요</button>`);
+}
+const BDA = {
+  boardReload() { BD.loaded = false; BD.posts = []; render(); },
+  boardMore() { loadBoard(true); },
+  boardMode(v) { BD.mode = v; BD.loaded = false; render(); },
+  boardCat(v) { BD.cat = v; BD.loaded = false; render(); },
+  openPost(v) { BD.post = null; BD.comments = []; R.postId = Number(v); R.screen = 'post'; render(); $('#view').scrollTop = 0; loadPost(v); },
+  postNew() {
+    if (!S.boardRules) { rulesSheet('postNew'); return; }
+    Object.assign(BF, { cat: BD.cat && BOARD_CATS[BD.cat] ? BD.cat : 'report', body: '', photos: [], loc: true });
+    R.screen = 'postForm'; render(); $('#view').scrollTop = 0;
+  },
+  rulesOk(v) { S.boardRules = true; save(); closeSheet(); if (v === 'postNew') BDA.postNew(); },
+  pickHow(v) { if (window.__pickHow) { const f = window.__pickHow; window.__pickHow = null; f(v); } },
+  bfCat(v) { readPostForm(); BF.cat = v; render(); },
+  bfLoc(v, el) { readPostForm(); BF.loc = el.checked; render(); },
+  bfDelPhoto(v) { readPostForm(); BF.photos.splice(Number(v), 1); render(); },
+  async bfAddPhoto() {
+    readPostForm();
+    const srcs = await pickPhotos(4 - BF.photos.length);
+    if (!srcs.length) return;
+    toast('사진을 줄이는 중…');
+    for (const s of srcs) { const j = await boardJpeg(s); if (j && BF.photos.length < 4) BF.photos.push(j); }
+    render();
+  },
+  async postSubmit(v, el) {
+    readPostForm();
+    const body = BF.body.trim();
+    if (!body && !BF.photos.length) { toast('내용을 적거나 사진을 넣어주세요'); return; }
+    el.disabled = true; el.textContent = '올리는 중…';
+    let lat, lng;
+    if (BF.loc) { const p = await getPosition(); if (p) { lat = Math.round(p.lat * 1000) / 1000; lng = Math.round(p.lng * 1000) / 1000; BD.pos = p; BD.posGps = true; } else toast('위치를 찾지 못해 동네 표시 없이 올려요'); }
+    const r = await AU().board('write', { cat: BF.cat, body, photos: BF.photos, lat, lng });
+    if (r.error) { el.disabled = false; el.textContent = '올리기'; toast(r.message); return; }
+    if (BF.photos.length && r.photos < BF.photos.length) toast(`사진 ${BF.photos.length - r.photos}장은 올리지 못했어요`);
+    else toast('올렸어요');
+    BD.cat = ''; if (lat === undefined) BD.mode = 'all';
+    R.screen = null; BD.loaded = false; render();
+  },
+  async cmtSend(v, el) {
+    const inp = $('#cmtInput'); const body = (inp.value || '').trim();
+    if (!body) { inp.focus(); return; }
+    el.disabled = true;
+    const r = await AU().board('comment', { post_id: BD.post.id, body });
+    el.disabled = false;
+    if (r.error) { toast(r.message); return; }
+    inp.value = ''; await loadPost(BD.post.id);
+    setTimeout(() => { const v2 = $('#view'); v2.scrollTop = v2.scrollHeight; }, 50);
+  },
+  photoView(v, el) {
+    const u = el.dataset.src; if (!u) return;
+    sheet(`<img src="${u}" alt="" style="width:100%;border-radius:12px;display:block"><button class="btn" data-act="closeSheet">닫기</button>`);
+  },
+  postMenu() {
+    const p = BD.post; if (!p) return;
+    sheet(p.mine
+      ? `<h2>내 글</h2><button class="btn danger" data-act="postDelAsk">글 지우기</button><button class="btn" data-act="closeSheet">닫기</button>`
+      : `<h2>${esc(p.author)} 님의 글</h2><button class="btn" data-act="reportAsk" data-v="post:${p.id}">신고하기</button><button class="btn danger" data-act="blockAsk" data-v="${p.author_id}" data-n="${esc(p.author)}">이 이웃 차단하기</button><button class="btn" data-act="closeSheet">닫기</button>`);
+  },
+  postDelAsk() {
+    sheet(`<h2>글을 지울까요?</h2><p class="muted" style="margin:0">사진과 댓글도 함께 지워지고 되돌릴 수 없어요.</p><button class="btn danger" data-act="postDel">지우기</button><button class="btn" data-act="closeSheet">취소</button>`);
+  },
+  async postDel() {
+    const id = BD.post.id;
+    const r = await AU().board('delete', { post_id: id });
+    if (r.error) { toast(r.message); return; }
+    closeSheet(); BD.posts = BD.posts.filter(p => p.id !== id); R.screen = null; render(); toast('글을 지웠어요');
+  },
+  cmtMenu(v) {
+    const c = BD.comments.find(x => x.id === Number(v)); if (!c) return;
+    sheet(c.mine
+      ? `<h2>내 댓글</h2><button class="btn danger" data-act="cmtDel" data-v="${c.id}">댓글 지우기</button><button class="btn" data-act="closeSheet">닫기</button>`
+      : `<h2>${esc(c.author)} 님의 댓글</h2><button class="btn" data-act="reportAsk" data-v="comment:${c.id}">신고하기</button><button class="btn danger" data-act="blockAsk" data-v="${c.author_id}" data-n="${esc(c.author)}">이 이웃 차단하기</button><button class="btn" data-act="closeSheet">닫기</button>`);
+  },
+  async cmtDel(v) {
+    const r = await AU().board('delete_comment', { comment_id: Number(v) });
+    if (r.error) { toast(r.message); return; }
+    closeSheet(); toast('댓글을 지웠어요'); await loadPost(BD.post.id);
+  },
+  reportAsk(v) {
+    const reasons = ['욕설·비방', '광고·스팸', '급식소 위치·개인정보 노출', '동물 학대·불쾌한 사진', '거짓 정보', '기타'];
+    sheet(`<h2>왜 신고하나요?</h2><div class="list">${reasons.map(r => `<button class="li sli" data-act="reportGo" data-v="${v}" data-r="${r}"><span>${r}</span></button>`).join('')}</div>
+      <p class="small muted" style="margin:0">신고한 사람은 상대에게 알려지지 않아요. 3명이 신고하면 바로 숨겨지고 운영자가 확인해요.</p>`);
+  },
+  async reportGo(v, el) {
+    const [kind, id] = v.split(':');
+    const r = await AU().board('report', { kind, id: Number(id), reason: el.dataset.r });
+    if (r.error) { toast(r.message); return; }
+    closeSheet(); toast('신고했어요. 운영자가 확인할게요');
+  },
+  blockAsk(v, el) {
+    sheet(`<h2>${esc(el.dataset.n)} 님을 차단할까요?</h2><p class="muted" style="margin:0;line-height:1.6">이 이웃의 글과 댓글이 나에게 보이지 않고, 이 이웃은 내 글에 댓글을 달 수 없어요. 상대에게는 알리지 않아요. 설정에서 언제든 풀 수 있어요.</p>
+      <button class="btn danger" data-act="blockGo" data-v="${v}">차단하기</button><button class="btn" data-act="closeSheet">취소</button>`);
+  },
+  async blockGo(v) {
+    const r = await AU().board('block', { user_id: Number(v) });
+    if (r.error) { toast(r.message); return; }
+    closeSheet(); toast('차단했어요');
+    BD.posts = BD.posts.filter(p => p.author_id !== Number(v));
+    if (R.screen === 'post' && BD.post && BD.post.author_id === Number(v)) { R.screen = null; render(); }
+    else if (R.screen === 'post') loadPost(BD.post.id);
+    else render();
+  },
+  async blocksSheet() {
+    const r = await AU().board('blocks', null, 'GET');
+    if (r.error) { toast(r.message); return; }
+    sheet(`<h2>차단한 이웃</h2>${r.blocks.length ? `<div class="list">${r.blocks.map(b => `<div class="li"><span>${esc(b.nickname)}</span><button class="btn sm" data-act="unblock" data-v="${b.id}">차단 풀기</button></div>`).join('')}</div>` : `<div class="empty">차단한 이웃이 없어요</div>`}
+      <button class="btn" data-act="closeSheet">닫기</button>`);
+  },
+  async unblock(v) {
+    const r = await AU().board('unblock', { user_id: Number(v) });
+    if (r.error) { toast(r.message); return; }
+    toast('차단을 풀었어요'); BD.loaded = false; BDA.blocksSheet();
+  }
+};
+
 /* ---------- actions ---------- */
 const A = {
-  tab(v) { R.tab = v; R.screen = null; R.adding = false; R.picking = false; render(); $('#view').scrollTop = 0; },
+  tab(v) { R.tab = v; R.screen = null; R.adding = false; R.picking = false; if (v === 'board' && !BD.posTried) BD.loaded = false; render(); $('#view').scrollTop = 0; },
   back() { R.screen = null; render(); },
   scrim(v, el, e) { if (e.target === el) closeSheet(); },
   closeSheet() { closeSheet(); },
@@ -1208,7 +1516,7 @@ const A = {
   }
 };
 
-Object.assign(A, SA, BA, LA);
+Object.assign(A, SA, BA, LA, BDA);
 // 공유 중인 급식소를 고치면 공유본도 따라 바뀐다
 ['renamePoint', 'saveTime', 'delTime', 'saveCat', 'renameCat', 'delCat'].forEach(k => {
   const f = A[k];
@@ -1252,7 +1560,7 @@ async function setupNative() {
       if (R.tab !== 'map') { A.tab('map'); return; }
       P.App.exitApp();
     });
-    P.App.addListener('resume', () => { render(); loadShares(true); loadLost(true); });
+    P.App.addListener('resume', () => { render(); loadShares(true); loadLost(true); if (!R.screen) loadBoard(); });
     P.App.addListener('appUrlOpen', ev => handleJoinLink(ev && ev.url));
     try { const l = await P.App.getLaunchUrl(); if (l && l.url) handleJoinLink(l.url); } catch (e) {}
   }
@@ -1305,10 +1613,12 @@ render();
   AU().onChange(u => {
     SH.loaded = false; SH.owned = []; SH.joined = []; SH.pending = 0;
     LS.loaded = false; LS.mine = []; LS.nearby = []; LS.unread = 0; BK.consent = null; BK.count = 0;
-    if (u) { loadShares(true); loadLost(true); checkBackup(); } else { render(); syncOverlays(); }
+    BD.loaded = false; BD.posts = []; BD.unread = 0; BD.post = null;
+    if (u) { loadShares(true); loadLost(true); loadBoard(); checkBackup(); } else { render(); syncOverlays(); }
   });
   await AU().ready;
   await Promise.all([loadShares(true), loadLost(true)]);
+  loadBoard();
   if (LS.unread) toast(`내 급식소 근처에서 고양이를 찾고 있어요 · 탐정모드에서 확인해 주세요`);
   else if (SH.pending) toast(`받은 밥 부탁이 ${SH.pending}건 있어요 · 함께 탭에서 확인해 주세요`);
   await checkBackup();

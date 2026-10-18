@@ -68,6 +68,8 @@ function delete_user_shares(int $userId): void {
     foreach ($st->fetchAll() as $r) delete_lost((int)$r['id']);
     $db->prepare('DELETE FROM nk_lost_notices WHERE user_id = ?')->execute([$userId]);
     $db->prepare('DELETE FROM nk_lost_replies WHERE user_id = ?')->execute([$userId]);
+    // 이웃 게시판: 내 글·댓글·신고·차단 기록
+    delete_user_board($userId);
 }
 
 function clean_times($v): array {
@@ -88,14 +90,14 @@ function valid_date(string $d): bool {
 // 앱이 보낸 작은 JPEG(base64)를 저장하고 파일 이름을 돌려준다
 function save_photo(int $shareId, string $b64): ?string { return save_jpeg_to(share_photo_dir($shareId), $b64); }
 // 앱이 보낸 작은 JPEG(base64)를 검사해서 저장하고 파일 이름을 돌려준다
-function save_jpeg_to(string $dir, string $b64): ?string {
+function save_jpeg_to(string $dir, string $b64, int $maxBytes = NK_MAX_PHOTO_BYTES, int $maxPx = 1200): ?string {
     $b64 = preg_replace('#^data:image/jpeg;base64,#', '', $b64) ?? '';
     $bin = base64_decode($b64, true);
-    if ($bin === false || strlen($bin) < 100 || strlen($bin) > NK_MAX_PHOTO_BYTES) return null;
+    if ($bin === false || strlen($bin) < 100 || strlen($bin) > $maxBytes) return null;
     if (substr($bin, 0, 3) !== "\xFF\xD8\xFF") return null;                 // JPEG만
     if (function_exists('getimagesizefromstring')) {
         $info = @getimagesizefromstring($bin);
-        if (!$info || ($info[2] ?? 0) !== IMAGETYPE_JPEG || $info[0] > 1200 || $info[1] > 1200) return null;
+        if (!$info || ($info[2] ?? 0) !== IMAGETYPE_JPEG || $info[0] > $maxPx || $info[1] > $maxPx) return null;
     }
     if (!is_dir($dir) && !@mkdir($dir, 0750, true)) throw new RuntimeException('cannot create photo dir');
     $name = substr(sha($bin), 0, 32) . '.jpg';
