@@ -10,8 +10,8 @@
   },
   "plugins": {
     "LocalNotifications": {
-      "iconColor": "#2F6B4F"
+      "iconColor": "#7B6CF0"
     }
   },
-  "backgroundColor": "#1F4A36"
+  "backgroundColor": "#8E7CF6"
 }

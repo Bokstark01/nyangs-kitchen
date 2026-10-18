@@ -73,8 +73,8 @@ for (const dpi of ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi', 'anydpi-v26']) 
   for (const f of fs.readdirSync(src)) fs.copyFileSync(path.join(src, f), path.join(dst, f));
 }
 
-// 시작 화면: 진한 녹색 배경 + 가운데 고양이
-const splashGreen = '#1F4A36';
+// 시작 화면: 라벤더 배경 + 밥그릇 앞 고양이 (웹 인트로와 같은 그림)
+const splashGreen = '#8E7CF6';
 fs.writeFileSync(path.join(res, 'values/nk_colors.xml'), `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="nk_splash">${splashGreen}</color>\n    <color name="nk_icon_bg">#2F6B4F</color>\n</resources>\n`);
 for (const d of fs.readdirSync(res)) {
   const f = path.join(res, d, 'splash.png');

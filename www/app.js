@@ -310,7 +310,7 @@ function syncOverlays() {
     const K = window.kakao.maps;
     if (S.filters.zone) S.zones.forEach(z => {
       const pos = new K.LatLng(z.lat, z.lng);
-      kObjs.push(new K.Circle({ map: kmap, center: pos, radius: z.radius || 40, strokeWeight: 2, strokeColor: '#C2560F', strokeOpacity: 0.9, strokeStyle: 'dash', fillColor: '#C2560F', fillOpacity: 0.14 }));
+      kObjs.push(new K.Circle({ map: kmap, center: pos, radius: z.radius || 40, strokeWeight: 2, strokeColor: '#E8735A', strokeOpacity: 0.9, strokeStyle: 'dash', fillColor: '#FF9F8A', fillOpacity: 0.16 }));
       const el = document.createElement('div'); el.className = 'kzone'; el.innerHTML = `${I.warn}${esc(z.label)}`;
       el.addEventListener('click', ev => { ev.stopPropagation(); zoneSheet(z.id); });
       kObjs.push(new K.CustomOverlay({ map: kmap, position: pos, content: el, yAnchor: 0.5, clickable: true }));
@@ -327,7 +327,7 @@ function syncOverlays() {
     });
   } else {
     if (S.filters.zone) S.zones.forEach(z => {
-      kObjs.push(L.circle([z.lat, z.lng], { radius: z.radius || 40, color: '#C2560F', weight: 2, dashArray: '6 6', fillColor: '#C2560F', fillOpacity: 0.14, interactive: false }).addTo(kmap));
+      kObjs.push(L.circle([z.lat, z.lng], { radius: z.radius || 40, color: '#E8735A', weight: 2, dashArray: '6 6', fillColor: '#FF9F8A', fillOpacity: 0.16, interactive: false }).addTo(kmap));
       const icon = L.divIcon({ className: 'nk-icon', html: `<div class="kzone">${I.warn}${esc(z.label)}</div>`, iconSize: null });
       kObjs.push(L.marker([z.lat, z.lng], { icon }).on('click', () => zoneSheet(z.id)).addTo(kmap));
     });
@@ -401,9 +401,9 @@ function renderMapUi() {
   const empty = !S.points.length && !R.adding ? `<div class="peek"><b style="font-size:15px">첫 급식 포인트를 등록해 보세요</b><span class="small muted">지도에서 급식소 자리를 꾸욱 누르면 바로 등록할 수 있어요.</span></div>` : '';
   ui.innerHTML = `
     <div class="legend">
-      <button data-act="filter" data-v="mine" aria-pressed="${S.filters.mine}"><span class="dot" style="background:#2F6B4F"></span>내 포인트 ${S.points.length}</button>
-      <button data-act="filter" data-v="zone" aria-pressed="${S.filters.zone}"><span class="dot" style="border:2px dashed #C2560F"></span>주의 구역 ${S.zones.length}</button>
-      ${SH.joined.length ? `<button data-act="filter" data-v="shared" aria-pressed="${S.filters.shared !== false}"><span class="dot" style="background:#6B4FA0"></span>공유받은 곳 ${SH.joined.length}</button>` : ''}
+      <button data-act="filter" data-v="mine" aria-pressed="${S.filters.mine}"><span class="dot" style="background:linear-gradient(135deg,#8E7CF6,#FFB8A0)"></span>내 포인트 ${S.points.length}</button>
+      <button data-act="filter" data-v="zone" aria-pressed="${S.filters.zone}"><span class="dot" style="border:2px dashed #E8735A"></span>주의 구역 ${S.zones.length}</button>
+      ${SH.joined.length ? `<button data-act="filter" data-v="shared" aria-pressed="${S.filters.shared !== false}"><span class="dot" style="background:#fff;border:2.5px solid #B79BFF"></span>공유받은 곳 ${SH.joined.length}</button>` : ''}
     </div>
     ${R.adding ? `<div class="addhint"><span>급식소 자리를 지도에서 <b>꾸욱</b> 눌러주세요</span><button data-act="cancelAdd">취소</button></div>` : ''}
     ${R.adding ? '' : `<button class="fab loc" style="bottom:${sel || empty ? 216 : 86}px" data-act="locate" aria-label="내 위치로">${I.loc}</button>

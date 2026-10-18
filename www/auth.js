@@ -135,7 +135,7 @@ function render() {
   if (key === renderedKey) el.querySelectorAll('input[id]').forEach(i => { kept[i.id] = i.type === 'checkbox' ? i.checked : i.value; });
   const focusedId = document.activeElement && el.contains(document.activeElement) ? document.activeElement.id : '';
   const compact = view !== 'start' && view !== 'setup';
-  el.innerHTML = `<div class="auth-hero ${compact ? 'compact' : ''}">${CAT}<h1 class="auth-title">냥's 키친</h1>${compact ? '' : '<p class="auth-sub">우리 동네 길고양이 밥 지도</p>'}</div>
+  el.innerHTML = `<div class="auth-hero ${compact ? 'compact' : ''}">${CAT}<h1 class="auth-title">냥's 키친</h1>${compact ? '' : '<p class="auth-sub">길고양이 밥 주는 사람들의 작은 부엌</p>'}</div>
     <div class="auth-card">${cardHtml()}</div>`;
   Object.keys(kept).forEach(id => { const i = document.getElementById(id); if (!i) return; if (i.type === 'checkbox') i.checked = kept[id]; else i.value = kept[id]; });
   if (focusedId && document.getElementById(focusedId)) document.getElementById(focusedId).focus();
