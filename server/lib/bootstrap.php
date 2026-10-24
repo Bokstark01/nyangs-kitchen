@@ -102,7 +102,7 @@ function require_user(): array {
     return $u;
 }
 function user_public(array $u): array {
-    return ['id' => (int)$u['id'], 'nickname' => $u['nickname'], 'email' => $u['email'], 'provider' => $u['provider']];
+    return ['id' => (int)$u['id'], 'nickname' => $u['nickname'], 'email' => $u['email'], 'provider' => $u['provider'], 'created_at' => (int)($u['created_at'] ?? 0)];
 }
 function find_user(int $id): ?array {
     $st = db()->prepare('SELECT * FROM nk_users WHERE id = ?');

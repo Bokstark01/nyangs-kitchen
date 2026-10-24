@@ -543,6 +543,7 @@ function settingsSheet() {
       <span class="small muted">${BK.consent === true ? `켜짐 · 급식소 ${BK.count}곳 백업됨. 사진은 올리지 않아요. 끄면 서버 기록이 바로 지워져요.` : '꺼짐 · 휴대폰을 바꾸면 급식소를 복원할 수 없고, 근처 유실묘 알림을 받지 않아요.'}</span>
       ${BK.consent === true ? `<button class="btn sm" data-act="restoreGo">백업에서 불러오기</button>` : ''}</div>` : ''}
     ${AU && AU.user() ? `<button class="btn" data-act="blocksSheet">차단한 이웃 관리</button>` : ''}
+    <button class="btn" data-act="tourAgain">튜토리얼 다시 보기</button>
     <div class="card"><div class="between"><span>급식 포인트</span><b>${S.points.length}곳</b></div><div class="between"><span>등록한 고양이</span><b>${cats}마리</b></div><div class="between"><span>급식 주의 구역</span><b>${S.zones.length}곳</b></div></div>
     <div class="field"><label for="keyInput2">카카오 지도 JavaScript 키 (선택)</label><input id="keyInput2" value="${esc(S.kakaoKey)}" placeholder="${kakaoKey() ? '빌드에 들어간 키 사용 중' : '없으면 기본 지도를 써요'}" autocapitalize="off" autocomplete="off" spellcheck="false"></div>
     <button class="btn" data-act="saveKey2">키 저장</button>
@@ -1792,7 +1793,80 @@ const CHA = {
   },
 };
 
-Object.assign(A, SA, BA, LA, BDA, CHA);
+/* ---------- 처음 가입한 사람을 위한 튜토리얼 ----------
+   가입한 지 하루가 안 된 계정이 이 휴대폰에서 처음 로그인하면 "진행할까요?"를 묻고, 네를 고르면 탭 5개를 차례로 보여준다.
+   설정에서 언제든 다시 볼 수 있다. */
+const TOUR = [
+  ['map', '내 급식소를 지도에', '오른쪽 아래 <b>+ 버튼</b>으로 밥 주는 곳을 등록해요. 고양이 사진과 밥 시간을 남길 수 있고, 급식소는 기본으로 <b>나만</b> 봐요.'],
+  ['schedule', '밥 시간 알림과 츄르 챌린지', '등록한 밥 시간이 여기 모여요. <b>알람</b>을 켜 두면 시간 맞춰 알려 드려요. 맨 위 <b>츄르 챌린지</b>로 30일 연속 인증하면 진짜 츄르를 받아요!'],
+  ['share', '이웃과 같이 돌보기', '급식소를 공유하고 <b>초대 코드</b>로 이웃을 불러요. 못 가는 날엔 <b>밥 부탁</b>을 하고, 누가 언제 밥 줬는지 함께 봐요.'],
+  ['board', '동네 길냥이 소식', '다친 고양이 제보, TNR 정보, 궁금한 점을 사진과 함께 나눠요. 고양이 안전을 위해 <b>정확한 급식소 위치</b>는 올리지 말아 주세요.'],
+  ['detective', '잃어버린 고양이 찾기', '<b>유실 신고</b>를 하면 운영자 확인 뒤 근처 급식소 주인들에게 알림이 가요. 알림을 받으면 <b>‘봤어요’</b>로 답장해 주세요.'],
+];
+let tourStep = -1;
+const TOUR_SPOT = { map: '[data-act="startAdd"]', schedule: '.churu-card', share: '', board: '[data-act="postNew"]', detective: '[data-act="lostNew"]' };
+function tourAsked(u) { return !!(S.tourAsked && u && S.tourAsked[u.id]); }
+function markTourAsked(u) { if (!u) return; S.tourAsked = S.tourAsked || {}; S.tourAsked[u.id] = 1; save(); }
+function maybeAskTour(tries = 0) {
+  const u = AU() && AU().user();
+  if (!u || tourAsked(u) || tourStep >= 0) return;
+  if (!(u.created_at && Date.now() / 1000 - u.created_at < 86400)) return;   // 처음 가입한 사람만
+  const authOpen = document.getElementById('auth') && !document.getElementById('auth').hidden;
+  if ((layer.querySelector('.scrim') || authOpen || document.getElementById('intro')) && tries < 40) { setTimeout(() => maybeAskTour(tries + 1), 1500); return; }
+  sheet(`<div class="tour-ask"><img src="img/nk-cat.webp" alt="" width="855" height="932"><h2>냥's 키친에 오신 걸 환영해요!</h2>
+    <p class="muted">처음이시라면 지도 · 급식 일정 · 함께 · 이웃 · 탐정모드를<br>1분 안에 둘러볼 수 있어요. 튜토리얼을 진행할까요?</p></div>
+    <button class="btn primary" data-act="tourYes">네, 둘러볼게요</button><button class="btn" data-act="tourNo">아니요, 바로 시작할게요</button>`);
+}
+function tourShow() {
+  const [tab, title, text] = TOUR[tourStep];
+  R.tab = tab; R.screen = null; R.adding = false; render(); $('#view').scrollTop = 0;
+  if (tab === 'schedule' && !CH.loaded) loadChuru();
+  let el = document.getElementById('tour');
+  if (!el) { el = document.createElement('div'); el.id = 'tour'; el.className = 'tour'; app.appendChild(el); }
+  const btn = document.querySelector(`#tabs button[data-v="${tab}"]`);
+  const r = btn ? btn.getBoundingClientRect() : { left: 0, top: innerHeight - 80, width: 80, height: 60 };
+  const last = tourStep === TOUR.length - 1;
+  const cx = r.left + r.width / 2, bw = Math.min(innerWidth - 32, 360);
+  const holes = [{ x: r.left + 4, y: r.top + 2, w: r.width - 8, h: r.height - 4, rr: 18 }];
+  const sp = TOUR_SPOT[tab] && document.querySelector(TOUR_SPOT[tab]);
+  let bubbleBottom = innerHeight - r.top + 16, arrowX = cx;
+  if (sp) {
+    const q = sp.getBoundingClientRect();
+    if (q.width && q.bottom < r.top - 40) {
+      const h = { x: q.left - 6, y: q.top - 6, w: q.width + 12, h: q.height + 12, rr: Math.min(28, (q.height + 12) / 2) };
+      holes.push(h);
+      // 화면 아래쪽 버튼(지도의 + 버튼)은 말풍선에 가려지지 않게 그 위로 올리고 화살표도 그 버튼을 가리킨다
+      if (h.y + h.h > innerHeight - 330) { bubbleBottom = innerHeight - h.y + 16; arrowX = h.x + h.w / 2; }
+    }
+  }
+  const bl = Math.max(16, Math.min(innerWidth - bw - 16, arrowX - bw / 2));
+  el.innerHTML = `<svg class="tour-dim" width="100%" height="100%"><defs><mask id="tourMask"><rect width="100%" height="100%" fill="#fff"/>${holes.map(h => `<rect x="${h.x}" y="${h.y}" width="${h.w}" height="${h.h}" rx="${h.rr}" fill="#000"/>`).join('')}</mask></defs><rect width="100%" height="100%" fill="rgba(30,22,60,.58)" mask="url(#tourMask)"/></svg>
+    ${holes.map((h, i) => `<div class="tour-ring ${i ? 'pulse' : ''}" style="left:${h.x}px;top:${h.y}px;width:${h.w}px;height:${h.h}px;border-radius:${h.rr}px"></div>`).join('')}
+    <div class="tour-bubble" role="dialog" aria-label="튜토리얼 ${tourStep + 1}/${TOUR.length}" style="left:${bl}px;width:${bw}px;bottom:${bubbleBottom}px">
+      <img class="tour-cat" src="img/nk-cat.webp" alt="" width="855" height="932">
+      <div class="tour-dots">${TOUR.map((_, i) => `<span class="${i === tourStep ? 'on' : ''}"></span>`).join('')}<em>${tourStep + 1} / ${TOUR.length}</em></div>
+      <b class="tour-title">${title}</b><p class="tour-text">${text}</p>
+      <div class="tour-btns"><button class="tour-skip" data-act="tourSkip">${last ? '' : '건너뛰기'}</button>
+        ${tourStep > 0 ? `<button class="btn sm" data-act="tourPrev">이전</button>` : ''}<button class="btn sm primary" data-act="tourNext">${last ? '시작하기' : '다음'}</button></div>
+      <i class="tour-arrow" style="left:${Math.max(18, Math.min(bw - 18, arrowX - bl))}px"></i>
+    </div>`;
+  el.classList.remove('in'); void el.offsetWidth; el.classList.add('in');
+}
+function tourEnd() {
+  tourStep = -1; const el = document.getElementById('tour'); if (el) el.remove();
+  R.tab = 'map'; R.screen = null; render(); toast('이제 + 버튼으로 첫 급식소를 등록해 보세요');
+}
+const TA = {
+  tourYes() { markTourAsked(AU().user()); closeSheet(); tourStep = 0; tourShow(); },
+  tourNo() { markTourAsked(AU().user()); closeSheet(); toast('설정에서 언제든 튜토리얼을 다시 볼 수 있어요'); },
+  tourNext() { if (tourStep < TOUR.length - 1) { tourStep++; tourShow(); } else tourEnd(); },
+  tourPrev() { if (tourStep > 0) { tourStep--; tourShow(); } },
+  tourSkip() { tourEnd(); },
+  tourAgain() { closeSheet(); tourStep = 0; tourShow(); },
+};
+window.addEventListener('resize', () => { if (tourStep >= 0) tourShow(); });
+
+Object.assign(A, SA, BA, LA, BDA, CHA, TA);
 // 공유 중인 급식소를 고치면 공유본도 따라 바뀐다
 ['renamePoint', 'saveTime', 'delTime', 'saveCat', 'delCat'].forEach(k => {
   const f = A[k];
@@ -1891,7 +1965,7 @@ render();
     LS.loaded = false; LS.mine = []; LS.nearby = []; LS.unread = 0; BK.consent = null; BK.count = 0;
     BD.loaded = false; BD.posts = []; BD.unread = 0; BD.post = null;
     CH.loaded = false; CH.data = null;
-    if (u) { loadShares(true); loadLost(true); loadBoard(); checkBackup(); } else { render(); syncOverlays(); }
+    if (u) { loadShares(true); loadLost(true); loadBoard(); checkBackup(); setTimeout(maybeAskTour, 1200); } else { render(); syncOverlays(); }
   });
   await AU().ready;
   await Promise.all([loadShares(true), loadLost(true)]);
@@ -1899,6 +1973,7 @@ render();
   if (LS.unread) toast(`내 급식소 근처에서 고양이를 찾고 있어요 · 탐정모드에서 확인해 주세요`);
   else if (SH.pending) toast(`받은 밥 부탁이 ${SH.pending}건 있어요 · 함께 탭에서 확인해 주세요`);
   await checkBackup();
+  setTimeout(maybeAskTour, 800);
 })();
 setupLongPress();
 loadMap();
