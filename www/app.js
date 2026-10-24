@@ -462,7 +462,7 @@ function pointScreen() {
     <section style="display:flex;flex-direction:column;gap:10px">
       <div class="between"><h3 class="h-sec">먹으러 오는 고양이 ${p.cats.length ? p.cats.length + '마리' : ''}</h3><button class="linkbtn" data-act="addCat">+ 사진 추가</button></div>
       <div class="cats">
-        ${p.cats.map(c => `<button class="cat" data-act="catMenu" data-v="${c.id}"><div class="ph" style="${catBg(c)}"><span class="badge">${I.phoneS}원본</span></div><b>${esc(c.name)}</b></button>`).join('')}
+        ${p.cats.map(c => `<button class="cat" data-act="catMenu" data-v="${c.id}"><div class="ph" style="${catBg(c)}"><span class="badge">${I.phoneS}원본</span></div><b>${esc(c.name)}</b>${catTag(c)}</button>`).join('')}
         <button class="addcat" data-act="addCat">${I.plus}사진 추가</button>
       </div>
     </section>
@@ -598,11 +598,28 @@ function smallJpeg(src) {
     img.src = src;
   });
 }
+/* ---------- 고양이 건강·중성화 기록 ---------- */
+const SEX_OPTS = [['', '모름'], ['m', '수컷'], ['f', '암컷']];
+const NEUTER_OPTS = [['', '모름'], ['yes', '했어요'], ['no', '아직']];
+const HEALTH_KINDS = [['vet', '병원'], ['med', '약'], ['note', '메모']];
+let CD = null;   // 고양이 정보 시트에서 고치는 중인 값
+const catTag = c => c.neuter === 'yes' ? '<span class="cat-tag on">중성화 완료</span>' : c.neuter === 'no' ? '<span class="cat-tag">중성화 전</span>' : '';
+const segHtml = (k, label, opts, cur) => `<div class="field"><label>${label}</label><div class="seg" role="group" aria-label="${label}">${opts.map(([v, l]) => `<button data-act="catSeg" data-k="${k}" data-v="${v}" aria-pressed="${v === cur}">${l}${k === 'neuter' && v === 'yes' ? '<small>귀 끝 컷</small>' : ''}</button>`).join('')}</div></div>`;
+function healthList(list, editable) {
+  if (!list.length) return '<div class="empty" style="padding:10px 0">아직 기록이 없어요</div>';
+  const kl = Object.fromEntries(HEALTH_KINDS);
+  return `<div class="hlist">${list.map((h, i) => `<div class="hrow"><span class="hkind k-${h.k}">${kl[h.k] || '메모'}</span>
+    <div class="htext"><b>${esc(h.t)}</b><span class="small muted">${h.d.replace(/-/g, '.')}</span></div>
+    ${editable ? `<button class="iconsm" data-act="delHealth" data-v="${i}" aria-label="기록 지우기">${I.trash}</button>` : ''}</div>`).join('')}</div>`;
+}
 async function sharePayload(p) {
   const server = ownedFor(p.id);
   const cats = [];
   for (const c of p.cats) {
     const e = { id: c.id, name: c.name };
+    if (c.sex) e.sex = c.sex;
+    if (c.neuter) e.neuter = c.neuter;
+    if (c.health && c.health.length) e.health = c.health.slice(0, 30);
     const onServer = server && server.cats.find(x => x.id === c.id && x.photo);
     if (onServer) e.keep = true;
     else { const s = photoSrc(c); if (s) { const j = await smallJpeg(s); if (j) e.photo = j; } }
@@ -694,7 +711,7 @@ function sharedScreen() {
       ${s.memo ? `<p class="muted" style="margin:0">${esc(s.memo)}</p>` : ''}
     </div>
     ${s.cats.length ? `<section style="display:flex;flex-direction:column;gap:10px"><h3 class="h-sec">찾아오는 고양이 ${s.cats.length}마리</h3>
-      <div class="cats">${s.cats.map((c, i) => `<div class="cat"><div class="ph" data-photo="${c.photo ? s.id + '/' + c.photo : ''}" style="background:${CAT_COLORS[i % CAT_COLORS.length]}"></div><b>${esc(c.name)}</b></div>`).join('')}</div></section>` : ''}
+      <div class="cats">${s.cats.map((c, i) => `<button class="cat" data-act="sharedCat" data-s="${s.id}" data-v="${esc(c.id)}"><div class="ph" data-photo="${c.photo ? s.id + '/' + c.photo : ''}" style="background:${CAT_COLORS[i % CAT_COLORS.length]}"></div><b>${esc(c.name)}</b>${catTag(c)}</button>`).join('')}</div></section>` : ''}
     <section class="card" style="gap:0">
       <div class="between" style="padding-bottom:4px"><h3 class="h-sec">밥 부탁</h3>${s.owner && s.member_count ? `<button class="linkbtn" data-act="reqAsk" data-v="${s.id}">+ 부탁하기</button>` : ''}</div>
       ${reqHtml}
@@ -1468,12 +1485,51 @@ const A = {
   },
   catMenu(v) {
     const p = pt(R.pointId), c = p.cats.find(x => x.id === v); const src = photoSrc(c);
-    sheet(`<h2>${esc(c.name)}</h2>${src ? `<div style="width:100%;aspect-ratio:1/1;border-radius:16px;background:url('${src}') center/cover"></div>` : ''}
-      <div class="field"><label for="catRename">이름 바꾸기</label><input id="catRename" value="${esc(c.name)}" maxlength="12"></div>
-      <button class="btn primary" data-act="renameCat" data-v="${c.id}">이름 저장</button>
+    CD = { id: c.id, sex: c.sex || '', neuter: c.neuter || '', health: (c.health || []).slice(), kind: 'vet' };
+    sheet(`<div class="cat-head">${src ? `<div class="cat-thumb" style="background-image:url('${src}')"></div>` : `<div class="cat-thumb" style="background:${c.color || CAT_COLORS[0]}"></div>`}
+        <div class="field" style="flex:1"><label for="catRename">이름</label><input id="catRename" value="${esc(c.name)}" maxlength="12"></div></div>
+      ${segHtml('sex', '성별', SEX_OPTS, CD.sex)}
+      ${segHtml('neuter', '중성화', NEUTER_OPTS, CD.neuter)}
+      <section class="health"><div class="between"><h3 class="h-sec">건강 기록</h3><span class="small muted">함께 보는 사람에게도 보여요</span></div>
+        <div id="healthList">${healthList(CD.health, true)}</div>
+        <div class="health-add">
+          <div class="catrow" role="group" aria-label="기록 종류">${HEALTH_KINDS.map(([k, l]) => `<button data-act="healthKind" data-v="${k}" aria-pressed="${k === CD.kind}">${l}</button>`).join('')}</div>
+          <div class="row" style="gap:8px"><input type="date" id="hDate" value="${ymd(new Date())}" max="${ymd(new Date())}" aria-label="날짜">
+            <input id="hText" maxlength="80" placeholder="예: 안약 넣음" aria-label="내용" style="flex:1"></div>
+          <button class="btn sm" data-act="addHealth">${I.plus} 기록 추가</button>
+        </div></section>
+      <button class="btn primary" data-act="saveCatInfo" data-v="${c.id}">저장하기</button>
       <button class="btn danger" data-act="delCat" data-v="${c.id}">이 고양이 지우기</button>`);
   },
-  renameCat(v) { const c = pt(R.pointId).cats.find(x => x.id === v); c.name = $('#catRename').value.trim() || c.name; save(); closeSheet(); render(); },
+  catSeg(v, el) {
+    CD[el.dataset.k] = v;
+    el.parentElement.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === el)));
+  },
+  healthKind(v, el) { CD.kind = v; el.parentElement.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === el))); },
+  addHealth() {
+    const t = $('#hText').value.trim(), d = $('#hDate').value;
+    if (!t) { $('#hText').focus(); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { toast('날짜를 골라 주세요'); return; }
+    CD.health.unshift({ d, k: CD.kind, t }); CD.health.sort((a, b) => b.d.localeCompare(a.d)); CD.health = CD.health.slice(0, 30);
+    $('#hText').value = ''; $('#healthList').innerHTML = healthList(CD.health, true);
+  },
+  delHealth(v) { CD.health.splice(Number(v), 1); $('#healthList').innerHTML = healthList(CD.health, true); },
+  saveCatInfo(v) {
+    const p = pt(R.pointId), c = p.cats.find(x => x.id === v);
+    const t = $('#hText') && $('#hText').value.trim();
+    if (t) A.addHealth();   // 입력만 하고 '기록 추가'를 안 눌렀어도 저장
+    c.name = $('#catRename').value.trim() || c.name;
+    c.sex = CD.sex; c.neuter = CD.neuter; c.health = CD.health;
+    save(); syncShareSoon(p); closeSheet(); render(); toast('저장했어요');
+  },
+  sharedCat(v, el) {
+    const sh = shareById(Number(el.dataset.s)); const c = sh && sh.cats.find(x => String(x.id) === v); if (!c) return;
+    const sx = SEX_OPTS.find(o => o[0] === (c.sex || '')), nt = NEUTER_OPTS.find(o => o[0] === (c.neuter || ''));
+    sheet(`<h2>${esc(c.name)}</h2>
+      <div class="row" style="gap:6px;flex-wrap:wrap"><span class="chip ghost">성별 · ${sx[1]}</span><span class="chip ${c.neuter === 'yes' ? '' : 'ghost'}">중성화 · ${nt[1]}</span></div>
+      <section class="health"><h3 class="h-sec">건강 기록</h3>${healthList(c.health || [], false)}</section>
+      <p class="small muted" style="margin:0">기록은 급식소 주인이 남겨요.</p>`);
+  },
   async delCat(v) { const p = pt(R.pointId), c = p.cats.find(x => x.id === v); await deletePhoto(c); p.cats = p.cats.filter(x => x.id !== v); save(); closeSheet(); render(); toast('사진과 기록을 지웠어요'); },
   pointMenu() {
     const p = pt(R.pointId);
@@ -1528,7 +1584,7 @@ const A = {
 
 Object.assign(A, SA, BA, LA, BDA);
 // 공유 중인 급식소를 고치면 공유본도 따라 바뀐다
-['renamePoint', 'saveTime', 'delTime', 'saveCat', 'renameCat', 'delCat'].forEach(k => {
+['renamePoint', 'saveTime', 'delTime', 'saveCat', 'delCat'].forEach(k => {
   const f = A[k];
   A[k] = async (...a) => { const r = await f(...a); syncShareSoon(pt(R.pointId)); return r; };
 });

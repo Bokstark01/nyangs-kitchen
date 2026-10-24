@@ -5,6 +5,7 @@ declare(strict_types=1);
 const NK_INVITE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // 헷갈리는 0 O 1 I L 제외
 const NK_INVITE_DAYS = 7;
 const NK_MAX_CATS = 12;
+const NK_MAX_HEALTH = 30;   // 고양이 한 마리당 건강 기록 수
 const NK_MAX_PHOTO_BYTES = 250000;
 const NK_LOGS_PER_SHARE = 30;
 

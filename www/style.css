@@ -297,3 +297,28 @@ button{cursor:pointer}
 @media (prefers-reduced-motion:reduce){.nk-art *{animation:none!important;opacity:1}.nk-heart{display:none}}
 /* 고양이 발밑 그림자 (원본 그림자를 지웠으므로 떠 보이지 않게) */
 .nk-art::before{content:"";position:absolute;left:16%;right:10%;top:77.5%;height:6.5%;border-radius:50%;background:radial-gradient(closest-side,rgba(75,59,184,.34),rgba(75,59,184,0));animation:nkFade .6s .6s both}
+
+/* 고양이 정보: 성별·중성화·건강 기록 */
+.cat-tag{align-self:flex-start;margin-top:-2px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:var(--surface);border:1px solid var(--line);color:var(--muted)}
+.cat-tag.on{background:var(--accent-soft);border-color:transparent;color:var(--accent-soft-ink)}
+.cat-head{display:flex;gap:14px;align-items:flex-end}
+.cat-thumb{width:84px;height:84px;flex-shrink:0;border-radius:20px;background-size:cover;background-position:center;box-shadow:var(--lift)}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;padding:4px;border-radius:16px;background:var(--surface);border:1px solid var(--line)}
+.seg button{min-height:42px;border:none;border-radius:12px;background:transparent;font-size:14px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15;transition:background .25s,color .25s,transform .45s var(--spring)}
+.seg button small{font-size:10px;font-weight:500;opacity:.85}
+.seg button[aria-pressed="true"]{background:var(--grad);color:#fff;box-shadow:var(--glow)}
+.seg button:active{transform:scale(.95);transition-duration:.08s}
+.health{display:flex;flex-direction:column;gap:10px}
+.hlist{display:flex;flex-direction:column;gap:8px}
+.hrow{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:16px;background:var(--surface);border:1px solid var(--line)}
+.hkind{flex-shrink:0;padding:4px 9px;border-radius:10px;font-size:12px;font-weight:700}
+.hkind.k-vet{background:#EEEAFE;color:#5B4BD6}
+.hkind.k-med{background:#FFE9E1;color:#C4553C}
+.hkind.k-note{background:#F1EFF6;color:#6E6888}
+.htext{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.htext b{font-size:14px;font-weight:600;word-break:break-word}
+.health-add{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:18px;background:var(--surface);border:1.5px dashed var(--line)}
+.health-add .catrow{margin:0;padding:0}
+.health-add input{min-height:46px;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);padding:0 12px;font-size:15px;min-width:0}
+.health-add input[type=date]{flex:0 0 auto;width:150px}
+.health-add .catrow button{min-width:60px}

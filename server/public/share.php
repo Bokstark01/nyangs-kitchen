@@ -1,7 +1,7 @@
 <?php
 // 이웃과 함께 API (모두 로그인 토큰 필요)
 //   GET  share.php?action=list                                   → {owned:[…], joined:[…], pending:n}
-//   POST share.php?action=upsert  {nid,name,lat,lng,memo,times,cats:[{id,name,photo?,keep?}]} → {share}
+//   POST share.php?action=upsert  {nid,name,lat,lng,memo,times,cats:[{id,name,photo?,keep?,sex?,neuter?,health?:[{d,k,t}]}]} → {share}
 //   POST share.php?action=delete  {share_id}                     → {ok}   (공유 끝내기, 주인)
 //   POST share.php?action=invite  {share_id}                     → {code, expires_at}
 //   POST share.php?action=join    {code}                         → {share}
@@ -85,7 +85,19 @@ try {
             $photo = null;
             if (!empty($c['photo']) && is_string($c['photo'])) $photo = save_photo($sid, $c['photo']);
             elseif (!empty($c['keep'])) $photo = $old[$cid] ?? null;
-            $cats[] = ['id' => $cid, 'name' => $cname !== '' ? $cname : '이름 없는 냥이', 'photo' => $photo];
+            $e = ['id' => $cid, 'name' => $cname !== '' ? $cname : '이름 없는 냥이', 'photo' => $photo];
+            // 건강·중성화 기록 (함께 보는 사람에게도 보임)
+            $sex = (string)($c['sex'] ?? ''); if (in_array($sex, ['m', 'f'], true)) $e['sex'] = $sex;
+            $neu = (string)($c['neuter'] ?? ''); if (in_array($neu, ['yes', 'no'], true)) $e['neuter'] = $neu;
+            $hl = [];
+            foreach (array_slice(is_array($c['health'] ?? null) ? $c['health'] : [], 0, NK_MAX_HEALTH) as $h) {
+                if (!is_array($h)) continue;
+                $d = (string)($h['d'] ?? ''); $k = (string)($h['k'] ?? ''); $t = cut((string)($h['t'] ?? ''), 80);
+                if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) || !in_array($k, ['vet', 'med', 'note'], true) || $t === '') continue;
+                $hl[] = ['d' => $d, 'k' => $k, 't' => $t];
+            }
+            if ($hl) $e['health'] = $hl;
+            $cats[] = $e;
         }
         prune_photos($sid, array_values(array_filter(array_column($cats, 'photo'))));
         $db->prepare('UPDATE nk_shares SET name = ?, lat = ?, lng = ?, memo = ?, times = ?, cats = ?, updated_at = ? WHERE id = ?')

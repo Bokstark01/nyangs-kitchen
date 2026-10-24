@@ -26,6 +26,12 @@ ok('old non-jpeg cleared, keep restores nothing',$r['j']['share']['cats'][0]['ph
 $r=req('POST',"$B/share.php?action=upsert",$pt,$ta); $photo=$r['j']['share']['cats'][0]['photo'];
 $r=req('POST',"$B/share.php?action=upsert",array_merge($pt,['cats'=>[['id'=>'c1','name'=>'치즈','keep'=>true]]]),$ta);
 ok('keep keeps existing photo',$r['j']['share']['cats'][0]['photo']===$photo);
+// 건강·중성화 기록
+$hc=['id'=>'c1','name'=>'치즈','keep'=>true,'sex'=>'f','neuter'=>'yes','health'=>[['d'=>'2026-10-20','k'=>'vet','t'=>'눈 염증 진료'],['d'=>'bad','k'=>'vet','t'=>'x'],['d'=>'2026-10-21','k'=>'evil','t'=>'x'],['d'=>'2026-10-22','k'=>'med','t'=>'']]];
+$r=req('POST',"$B/share.php?action=upsert",array_merge($pt,['cats'=>[$hc,['id'=>'c2','name'=>'고등어','sex'=>'x','neuter'=>'maybe']]]),$ta);
+$c0=$r['j']['share']['cats'][0]; $c1=$r['j']['share']['cats'][1];
+ok('health saved, bad rows dropped',$c0['sex']==='f'&&$c0['neuter']==='yes'&&count($c0['health'])===1&&$c0['health'][0]['t']==='눈 염증 진료'&&$c0['photo']===$photo, json_encode($c0,JSON_UNESCAPED_UNICODE));
+ok('invalid sex/neuter ignored',!isset($c1['sex'])&&!isset($c1['neuter'])&&!isset($c1['health']));
 
 $r=req('GET',"$B/share.php?action=photo&share_id=$sid&f=$photo",null,$tb); ok('stranger cannot see photo',$r['s']==403);
 $r=req('POST',"$B/share.php?action=invite",['share_id'=>$sid],$tb); ok('stranger cannot invite',$r['s']==403);
