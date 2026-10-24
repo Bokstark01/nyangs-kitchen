@@ -1602,15 +1602,13 @@ async function loadChuru() {
 // 마스코트가 뒤에서 츄르 게이지를 안고 있는 그림 (n/goal 만큼 차오름)
 // 스틱 파우치(길쭉한 츄르 봉지) 모양: 위쪽에 하얀 봉합 띠, 양 끝 압착부, 왼쪽 위 뜯는 표시.
 // 비어 있을 땐 무채색, 인증한 날만큼 따뜻한 주황→토마토색으로 채워진다 (특정 상품의 로고·그림은 쓰지 않음)
-function churuHug(n, goal, opt = {}) {
+function churuPouch(n, goal, cls = 'ch-gauge') {
   const pct = Math.max(0, Math.min(1, n / goal)), X0 = 22, X1 = 318, fillW = (X1 - X0) * pct, id = 'cg' + Math.random().toString(36).slice(2, 7);
   const crimpV = (x0, x1) => Array.from({ length: Math.floor((x1 - x0) / 2.5) }, (_, i) => `<line x1="${(x0 + 1.25 + i * 2.5).toFixed(2)}" x2="${(x0 + 1.25 + i * 2.5).toFixed(2)}" y1="7" y2="59"/>`).join('');
   const crimpH = [9, 11.5, 14].map(y => `<line x1="4" x2="336" y1="${y}" y2="${y}"/>`).join('');
   const ticks = Array.from({ length: goal - 1 }, (_, i) => { const x = X0 + (i + 1) * ((X1 - X0) / goal); return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="50" y2="56"/>`; }).join('');
   const leftOn = n > 0, rightOn = n >= goal;
-  return `<div class="churu-hug ${opt.small ? 'small' : ''} ${CH.bump ? 'bump' : ''}" role="img" aria-label="츄르 게이지 ${n}/${goal}일">
-    <img class="ch-cat" src="img/nk-cat.webp" alt="" width="855" height="932">
-    <svg class="ch-gauge" viewBox="0 0 340 64" preserveAspectRatio="none" aria-hidden="true">
+  return `<svg class="${cls}" viewBox="0 0 340 64" preserveAspectRatio="none" aria-hidden="true">
       <defs>
         <linearGradient id="${id}f" x1="0" x2="1"><stop offset="0" stop-color="#F59A3C"/><stop offset=".35" stop-color="#EE6B35"/><stop offset="1" stop-color="#D9412E"/></linearGradient>
         <linearGradient id="${id}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EDECF0"/><stop offset=".6" stop-color="#DEDCE3"/><stop offset="1" stop-color="#CBC8D1"/></linearGradient>
@@ -1642,22 +1640,29 @@ function churuHug(n, goal, opt = {}) {
       <path d="M6 6 H334 Q337 6 337 9 V57 Q337 60 334 60 H6 Q3 60 3 57 V9 Q3 6 6 6Z" fill="none" stroke="#CFCCD6" stroke-width="1"/>
       <path d="M14 6 L16.5 10.5 L19 6 Z" fill="#fff" stroke="#CFCCD6" stroke-width=".8"/>
       <path d="M${X0} 16 V60 M${X1} 16 V60" stroke="#fff" stroke-opacity=".5" stroke-width="1"/>
-    </svg>
+    </svg>`;
+}
+function churuHug(n, goal, opt = {}) {
+  return `<div class="churu-hug ${opt.small ? 'small' : ''} ${CH.bump ? 'bump' : ''}" role="img" aria-label="츄르 게이지 ${n}/${goal}일">
+    <img class="ch-cat" src="img/nk-cat.webp" alt="" width="855" height="932">
+    ${churuPouch(n, goal)}
     <img class="ch-paws" src="img/nk-paws.webp" alt="" width="264" height="114">
   </div>`;
 }
-function churuCard() {   // 급식 일정 탭 맨 위
-  if (!canShare()) return `<button class="card churu-card" data-act="churuOpen"><div class="cc-text"><span class="cc-k">연속 급식 챌린지</span><b>30일 채우면<br>진짜 츄르 한 봉</b><span class="small muted">로그인하면 참여할 수 있어요</span></div><div class="cc-art">${churuHug(0, 30, { small: true })}</div></button>`;
-  const d = CH.data;
-  if (!d) return `<div class="card churu-card"><div class="cc-text"><span class="cc-k">연속 급식 챌린지</span><span class="small muted">${CH.error ? esc(CH.error) : '불러오는 중…'}</span></div></div>`;
-  const n = d.count || 0;
-  const line = { none: '<b>30일 채우면<br>진짜 츄르 한 봉</b><span class="cc-go">시작하기 ›</span>',
-    active: `<b>${n}<small> / ${d.goal}일</small></b><span class="small ${d.today_done ? 'muted' : 'cc-todo'}">${d.today_done ? '오늘 인증 완료' : '오늘 인증 전'}</span>`,
-    done: '<b>30일 달성!</b><span class="cc-todo small">츄르 받을 번호를 알려 주세요</span>',
-    claimed: '<b>30일 달성!</b><span class="small muted">사진 확인 중이에요</span>',
-    sent: '<b>츄르를 보냈어요</b><span class="small muted">함께해 줘서 고마워요</span>',
-    rejected: '<b>확인되지 않았어요</b><span class="small muted">자세히 보기</span>' }[d.status] || '';
-  return `<button class="card churu-card" data-act="churuOpen"><div class="cc-text"><span class="cc-k">연속 급식 챌린지</span>${line}</div><div class="cc-art">${churuHug(d.status === 'none' ? 0 : n, d.goal, { small: true })}</div></button>`;
+function churuCard() {   // 급식 일정 탭 맨 위: 눈에 띄게, 작은 고양이가 오른쪽에서 살랑살랑
+  const d = CH.data, goal = (d && d.goal) || 30;
+  let n = 0, title = '30일 채우면<br>진짜 츄르 한 봉', sub = '<span class="cc-go">챌린지 시작하기 ›</span>';
+  if (!canShare()) sub = '<span class="cc-sub">로그인하면 참여할 수 있어요 ›</span>';
+  else if (!d) sub = CH.error ? '<span class="cc-sub">연결이 안 돼요 · 눌러서 다시 시도</span>' : '<span class="cc-sub">불러오는 중…</span>';
+  else if (d.status === 'active') { n = d.count || 0; title = `${n}<small> / ${goal}일째</small>`; sub = d.today_done ? '<span class="cc-sub">오늘 인증 완료 · 내일 또 만나요</span>' : '<span class="cc-todo">오늘 인증 전 · 눌러서 인증하기 ›</span>'; }
+  else if (d.status === 'done') { n = goal; title = '30일 달성!'; sub = '<span class="cc-todo">츄르 받을 번호를 알려 주세요 ›</span>'; }
+  else if (d.status === 'claimed') { n = goal; title = '30일 달성!'; sub = '<span class="cc-sub">사진 확인 중이에요</span>'; }
+  else if (d.status === 'sent') { n = goal; title = '츄르를 보냈어요'; sub = '<span class="cc-sub">함께해 줘서 고마워요</span>'; }
+  else if (d.status === 'rejected') { title = '확인되지 않았어요'; sub = '<span class="cc-sub">자세히 보기 ›</span>'; }
+  return `<button class="churu-card" data-act="${canShare() && !d && CH.error ? 'churuReload' : 'churuOpen'}">
+    <div class="cc-text"><span class="cc-k">연속 급식 챌린지</span><b>${title}</b>${churuPouch(n, goal, 'cc-pouch')}${sub}</div>
+    <div class="cc-cat"><img src="img/nk-cat.webp" alt="" width="855" height="932"></div>
+  </button>`;
 }
 function churuScreen() {
   const nav = (menu) => `<div class="navbar"><button class="back" data-act="back" aria-label="뒤로">${I.back}</button><h1>츄르 챌린지</h1>${menu ? `<button class="back" data-act="churuMenu" aria-label="챌린지 메뉴">${I.more}</button>` : ''}</div>`;
@@ -1728,7 +1733,7 @@ async function churuShot() {   // 인증 사진은 카메라로만 (앨범 사�
 }
 const CHA = {
   churuOpen() { R.screen = 'churu'; render(); $('#view').scrollTop = 0; if (canShare()) loadChuru(); },
-  churuReload() { loadChuru(); },
+  churuReload() { CH.error = ''; CH.loaded = false; render(); loadChuru(); },
   churuPick(v, el) { CH.pick = v; el.parentElement.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === el))); },
   async churuJoin(v, el, e, reset) {
     const p = pt(CH.pick || (S.churuPoint && pt(S.churuPoint) ? S.churuPoint : ''));
