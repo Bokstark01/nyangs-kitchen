@@ -16,6 +16,7 @@ const STORE_KEY = 'nyangs-kitchen-v1';
 
 /* ---------- icons ---------- */
 const I = {
+  camera: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>',
   bell: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>',
   gear: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   bowl: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13h16a8 8 0 0 1-16 0z"/><path d="M9 9c0-1.5 1-2 1-3.5"/><path d="M14 9c0-1.5 1-2 1-3.5"/></svg>',
@@ -425,6 +426,7 @@ function scheduleScreen() {
   const done = rows.filter(r => isDone(r.t)).length;
   return `<header class="topbar"><div><div class="brand">급식 일정</div><div class="where">오늘 ${done}/${rows.length} 완료</div></div></header>
   <div class="pad">
+    ${churuCard()}
     ${rows.length ? `<div class="card" style="gap:0;padding:4px 16px">${rows.map(({ p, t }) => `<div class="time">
         <div class="row" style="gap:12px;min-width:0">
           <button class="check ${isDone(t) ? 'on' : ''}" data-act="toggleDone" data-p="${p.id}" data-v="${t.id}" aria-label="${esc(p.name)} ${t.t} 급식 완료">${I.ok}</button>
@@ -501,6 +503,7 @@ function render() {
     else if (R.screen === 'lostForm') html = lostFormScreen();
     else if (R.screen === 'post') html = postScreen();
     else if (R.screen === 'postForm') html = postFormScreen();
+    else if (R.screen === 'churu') html = churuScreen();
     else if (R.tab === 'board') html = boardScreen();
     else if (R.tab === 'detective') html = detectiveScreen();
     else if (R.tab === 'schedule') html = scheduleScreen();
@@ -1424,7 +1427,7 @@ const BDA = {
 
 /* ---------- actions ---------- */
 const A = {
-  tab(v) { R.tab = v; R.screen = null; R.adding = false; R.picking = false; if (v === 'board' && !BD.posTried) BD.loaded = false; render(); $('#view').scrollTop = 0; },
+  tab(v) { R.tab = v; R.screen = null; R.adding = false; R.picking = false; if (v === 'board' && !BD.posTried) BD.loaded = false; render(); $('#view').scrollTop = 0; if (v === 'schedule' && !CH.loaded) loadChuru(); },
   back() { R.screen = null; render(); },
   scrim(v, el, e) { if (e.target === el) closeSheet(); },
   closeSheet() { closeSheet(); },
@@ -1582,7 +1585,179 @@ const A = {
   }
 };
 
-Object.assign(A, SA, BA, LA, BDA);
+/* ---------- 츄르 챌린지 ----------
+   한 급식소에서 30일 연속 급식 인증 → 진짜 츄르 한 봉 (계정당 한 번).
+   날짜·거리 판정은 서버가 한다. 앱은 보여주기와 사진·위치 보내기만. */
+const CH = { loaded: false, loading: false, data: null, error: '', busy: false, pick: null, agree: false, phone: '', agreePhone: false, bump: false };
+const geoM = (a, b, c, d) => { const R = 6371000, r = x => x * Math.PI / 180; const x = r(d - b) * Math.cos(r((a + c) / 2)), y = r(c - a); return Math.sqrt(x * x + y * y) * R; };
+const md = d => d ? `${Number(d.slice(5, 7))}.${d.slice(8, 10)}` : '';
+async function loadChuru() {
+  if (!canShare() || CH.loading) return;
+  CH.loading = true;
+  const r = await AU().churu('status', null, 'GET');
+  CH.loading = false; CH.loaded = true;
+  if (r.error) CH.error = r.message; else { CH.error = ''; CH.data = r; }
+  if ((R.tab === 'schedule' && !R.screen) || R.screen === 'churu') render();
+}
+// 마스코트가 뒤에서 츄르 게이지를 안고 있는 그림 (n/goal 만큼 차오름)
+function churuHug(n, goal, opt = {}) {
+  const pct = Math.max(0, Math.min(1, n / goal)), fillW = 4 + 288 * pct, id = 'cg' + Math.random().toString(36).slice(2, 7);
+  const ticks = Array.from({ length: goal - 1 }, (_, i) => { const x = 4 + (i + 1) * (288 / goal); const on = i + 1 < n; return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="40" y2="55" stroke="${on ? '#fff' : '#E3DCF3'}" stroke-opacity="${on ? .45 : 1}" stroke-width="1.4"/>`; }).join('');
+  return `<div class="churu-hug ${opt.small ? 'small' : ''} ${CH.bump ? 'bump' : ''}" role="img" aria-label="츄르 게이지 ${n}/${goal}일">
+    <img class="ch-cat" src="img/nk-cat.webp" alt="" width="855" height="932">
+    <svg class="ch-gauge" viewBox="0 0 340 64" preserveAspectRatio="none" aria-hidden="true">
+      <defs><linearGradient id="${id}f" x1="0" x2="1"><stop offset="0" stop-color="#8E7CF6"/><stop offset=".6" stop-color="#B79BFF"/><stop offset="1" stop-color="#FFB8A0"/></linearGradient>
+      <clipPath id="${id}c"><path d="M16 4 H292 L326 16 Q336 32 326 48 L292 60 H16 Q4 60 4 48 V16 Q4 4 16 4Z"/></clipPath></defs>
+      <path d="M16 4 H292 L326 16 Q336 32 326 48 L292 60 H16 Q4 60 4 48 V16 Q4 4 16 4Z" fill="#FBF9FF" stroke="#E9E3F6" stroke-width="2"/>
+      <g clip-path="url(#${id}c)"><rect class="ch-fill" width="${fillW}" height="64" fill="url(#${id}f)" style="--w:${fillW}px"/>${ticks}</g>
+      ${pct > 0.04 ? `<path d="M20 13 H${Math.max(26, fillW - 8).toFixed(1)}" stroke="#fff" stroke-opacity=".55" stroke-width="4" stroke-linecap="round"/>` : ''}
+      <path d="M292 4 V60" stroke="#E9E3F6" stroke-width="2"/>
+    </svg>
+    <img class="ch-paws" src="img/nk-paws.webp" alt="" width="264" height="114">
+  </div>`;
+}
+function churuCard() {   // 급식 일정 탭 맨 위
+  if (!canShare()) return `<button class="card churu-card" data-act="churuOpen"><div class="cc-text"><span class="cc-k">연속 급식 챌린지</span><b>30일 채우면<br>진짜 츄르 한 봉</b><span class="small muted">로그인하면 참여할 수 있어요</span></div><div class="cc-art">${churuHug(0, 30, { small: true })}</div></button>`;
+  const d = CH.data;
+  if (!d) return `<div class="card churu-card"><div class="cc-text"><span class="cc-k">연속 급식 챌린지</span><span class="small muted">${CH.error ? esc(CH.error) : '불러오는 중…'}</span></div></div>`;
+  const n = d.count || 0;
+  const line = { none: '<b>30일 채우면<br>진짜 츄르 한 봉</b><span class="cc-go">시작하기 ›</span>',
+    active: `<b>${n}<small> / ${d.goal}일</small></b><span class="small ${d.today_done ? 'muted' : 'cc-todo'}">${d.today_done ? '오늘 인증 완료' : '오늘 인증 전'}</span>`,
+    done: '<b>30일 달성!</b><span class="cc-todo small">츄르 받을 번호를 알려 주세요</span>',
+    claimed: '<b>30일 달성!</b><span class="small muted">사진 확인 중이에요</span>',
+    sent: '<b>츄르를 보냈어요</b><span class="small muted">함께해 줘서 고마워요</span>',
+    rejected: '<b>확인되지 않았어요</b><span class="small muted">자세히 보기</span>' }[d.status] || '';
+  return `<button class="card churu-card" data-act="churuOpen"><div class="cc-text"><span class="cc-k">연속 급식 챌린지</span>${line}</div><div class="cc-art">${churuHug(d.status === 'none' ? 0 : n, d.goal, { small: true })}</div></button>`;
+}
+function churuScreen() {
+  const nav = (menu) => `<div class="navbar"><button class="back" data-act="back" aria-label="뒤로">${I.back}</button><h1>츄르 챌린지</h1>${menu ? `<button class="back" data-act="churuMenu" aria-label="챌린지 메뉴">${I.more}</button>` : ''}</div>`;
+  if (!canShare()) return nav() + `<div class="pad"><div class="card churu-hero">${churuHug(0, 30)}<p class="ch-lead">한 급식소에서 <b>30일 연속</b> 밥 주고 인증하면<br><b>진짜 츄르 한 봉</b>을 보내드려요</p></div>
+    <button class="btn primary" data-act="settings">로그인하고 참여하기</button></div>`;
+  const d = CH.data;
+  if (!d) return nav() + `<div class="pad"><div class="empty">${CH.error ? esc(CH.error) : '불러오는 중…'}</div>${CH.error ? '<button class="btn" data-act="churuReload">다시 불러오기</button>' : ''}</div>`;
+  const rules = `<div class="card ch-rules">
+      <div class="row">${I.ok}<span>하루 한 번, 급식소 <b>${d.near_m}m 안</b>에서 밥그릇 사진을 찍어 인증해요</span></div>
+      <div class="row">${I.ok}<span>날짜는 서버 시간으로 세요. 자정이 지나면 새 하루예요</span></div>
+      <div class="row">${I.ok}<span>한 달에 <b>하루는 쉬어도</b> 기록이 이어져요</span></div>
+      <div class="row">${I.ok}<span>30일을 채우면 사진을 확인한 뒤 <b>휴대폰 번호로 쿠폰</b>을 보내요. 계정당 한 번이에요</span></div>
+    </div>`;
+  if (d.status === 'none') {
+    const pts = S.points;
+    return nav() + `<div class="pad">
+      <div class="card churu-hero">${churuHug(0, d.goal)}<p class="ch-lead">한 급식소에서 <b>30일 연속</b> 밥 주고 인증하면<br><b>진짜 츄르 한 봉</b>을 보내드려요</p></div>
+      ${rules}
+      <section style="display:flex;flex-direction:column;gap:10px"><h3 class="h-sec">어느 급식소에서 할까요?</h3>
+      ${pts.length ? `<div class="ch-spots">${pts.map(p => `<button data-act="churuPick" data-v="${p.id}" aria-pressed="${CH.pick === p.id}"><span class="dot"></span><b>${esc(p.name)}</b><span class="small muted">${p.cats.length ? esc(p.cats.map(c => c.name).slice(0, 3).join(' · ')) : '등록한 고양이 없음'}</span></button>`).join('')}</div>`
+        : `<div class="empty" style="padding:14px 0">먼저 지도에서 급식소를 등록해 주세요</div><button class="btn" data-act="tab" data-v="map">지도로 가기</button>`}</section>
+      ${pts.length ? `<label class="auth-check"><input type="checkbox" id="chAgree" ${CH.agree ? 'checked' : ''}><span>인증할 급식소 위치와 매일 찍은 사진을 서버에 보관하는 데 동의해요. 챌린지가 끝나거나 그만두면 바로 지워요. 지금 내 위치는 저장하지 않고 급식소까지 거리만 확인해요.</span></label>
+      <button class="btn primary" data-act="churuJoin" ${CH.busy ? 'disabled' : ''}>챌린지 시작하기</button>` : ''}
+    </div>`;
+  }
+  const n = d.count || 0, left = Math.max(0, d.goal - n);
+  const cal = d.calendar.slice(-14);
+  const strip = `<div class="card ch-strip"><div class="between small"><b>최근 2주</b><span class="muted">${md(cal[0].d)} ~ 오늘</span></div><div class="cells" aria-label="최근 14일 인증 기록">${cal.map(c => `<span class="s-${c.s}" title="${c.d}" aria-label="${md(c.d)} ${({ done: '인증', rest: '쉼', today: '오늘', miss: '없음' })[c.s]}">${c.s === 'rest' ? '쉼' : ''}</span>`).join('')}</div></div>`;
+  const head = `<div class="card churu-hero">
+      <div class="ch-head"><div><div class="small muted">${d.status === 'active' ? '30일 채우면 진짜 츄르 한 봉' : esc(d.spot.name)}</div><div class="ch-count">${n}<small> / ${d.goal}일</small></div></div>${d.status === 'active' && n ? `<span class="pill-hot">${n}일째</span>` : ''}</div>
+      ${churuHug(n, d.goal)}
+      <div class="between small muted"><span>${d.start ? '시작 ' + md(d.start) : '오늘부터 시작'}</span><span>${d.status === 'active' ? (left ? `${left}일 남음` : '') : '30일 달성'}</span></div>
+    </div>`;
+  if (d.status === 'active') {
+    return nav(true) + `<div class="pad ch-pad">${head}
+      <div class="card ch-today ${d.today_done ? 'on' : ''}"><div class="ic">${d.today_done ? I.ok : I.camera}</div><div><b>오늘 ${esc(d.spot.name)} ${d.today_done ? '인증 완료' : '인증 전'}</b><span class="small muted">${d.today_done ? '내일 또 만나요' : `급식소 ${d.near_m}m 안에서 밥그릇 사진 1장`}</span></div></div>
+      <div class="card ch-rest"><span>쉬어도 이어지는 날</span><span class="${d.rest_left ? 'pill-peach' : 'pill-ghost'}">${d.rest_left ? '이번 달 1번 남음' : '이번 달 사용함'}</span></div>
+      ${strip}
+      ${d.today_done ? '' : `<div class="ch-cta"><button class="btn primary" data-act="churuCheckin" ${CH.busy ? 'disabled' : ''}>${I.camera} ${CH.busy ? '확인하는 중…' : '오늘 급식 인증하기'}</button></div>`}
+    </div>`;
+  }
+  if (d.status === 'done') {
+    return nav() + `<div class="pad">${head}
+      <div class="card ch-done"><b class="ch-big">30일 달성! 츄르 받으러 가요</b><span class="small muted">쿠폰을 받을 휴대폰 번호를 알려 주세요. 운영자가 인증 사진을 확인한 뒤 보내드려요.</span>
+        <div class="field"><label for="chPhone">휴대폰 번호</label><input id="chPhone" type="tel" inputmode="numeric" placeholder="010-1234-5678" maxlength="13" value="${esc(CH.phone)}"></div>
+        <label class="auth-check"><input type="checkbox" id="chAgreePhone" ${CH.agreePhone ? 'checked' : ''}><span>쿠폰 발송을 위해 휴대폰 번호를 수집하는 데 동의해요. 보내거나 확인이 끝나면 바로 지워요.</span></label>
+        <button class="btn primary" data-act="churuClaim" ${CH.busy ? 'disabled' : ''}>츄르 받기</button></div>
+    </div>`;
+  }
+  const msg = { claimed: ['사진을 확인하고 있어요', `확인되면 <b>${esc(d.phone)}</b>로 쿠폰을 보내드려요. 보통 며칠 걸려요.`],
+    sent: ['츄르를 보냈어요!', '문자로 온 쿠폰을 확인해 주세요. 츄르는 계정당 한 번이라 챌린지는 여기까지예요. 길냥이를 챙겨 줘서 고마워요.'],
+    rejected: ['인증이 확인되지 않았어요', d.note ? esc(d.note) : '같은 급식소에서 매일 찍은 사진인지 확인되지 않았어요.'] }[d.status] || ['', ''];
+  return nav() + `<div class="pad">${head}<div class="card ch-done"><b class="ch-big">${msg[0]}</b><span class="small muted" style="line-height:1.6">${msg[1]}</span></div></div>`;
+}
+async function churuShot() {   // 인증 사진은 카메라로만 (앨범 사진 재사용 막기)
+  if (isNative && P.Camera) {
+    try {
+      const r = await P.Camera.getPhoto({ quality: 80, width: 1280, correctOrientation: true, resultType: 'base64', source: 'CAMERA', saveToGallery: false });
+      return `data:image/${r.format || 'jpeg'};base64,${r.base64String}`;
+    } catch (e) { if (!/cancel/i.test(String(e && e.message))) toast('카메라를 열지 못했어요. 카메라 권한을 확인해 주세요'); return null; }
+  }
+  return new Promise(res => {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.capture = 'environment'; inp.hidden = true;
+    document.body.appendChild(inp);
+    inp.onchange = () => { const f = inp.files && inp.files[0]; inp.remove(); if (!f) return res(null); const rd = new FileReader(); rd.onload = () => res(rd.result); rd.onerror = () => res(null); rd.readAsDataURL(f); };
+    inp.click();
+  });
+}
+const CHA = {
+  churuOpen() { R.screen = 'churu'; render(); $('#view').scrollTop = 0; if (canShare()) loadChuru(); },
+  churuReload() { loadChuru(); },
+  churuPick(v, el) { CH.pick = v; el.parentElement.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === el))); },
+  async churuJoin(v, el, e, reset) {
+    const p = pt(CH.pick || (S.churuPoint && pt(S.churuPoint) ? S.churuPoint : ''));
+    CH.agree = !!($('#chAgree') && $('#chAgree').checked) || CH.agree;
+    if (!p) { toast('챌린지를 할 급식소를 골라 주세요'); return; }
+    if (!CH.agree) { toast('안내를 읽고 동의에 체크해 주세요'); return; }
+    CH.busy = true; render();
+    const r = await AU().churu('join', { name: p.name, lat: p.lat, lng: p.lng, agree: true, reset: !!reset }, 'POST');
+    CH.busy = false;
+    if (r.error === 'need_reset') { sheet(`<h2>급식소를 바꿀까요?</h2><p class="muted" style="margin:0;line-height:1.6">${esc(r.message)} 지금까지의 인증 사진도 지워져요.</p><button class="btn danger" data-act="churuJoinReset">바꾸고 처음부터</button><button class="btn" data-act="closeSheet">그대로 할게요</button>`); render(); return; }
+    if (r.error) { toast(r.message || '시작하지 못했어요'); render(); return; }
+    S.churuPoint = p.id; save(); CH.data = r; closeSheet(); render(); toast('시작! 오늘부터 하루 한 번 인증해요');
+  },
+  churuJoinReset() { closeSheet(); A.churuJoin(null, null, null, true); },
+  churuMenu() {
+    sheet(`<h2>츄르 챌린지</h2><button class="btn" data-act="churuChange">급식소 바꾸기</button><button class="btn danger" data-act="churuQuitAsk">챌린지 그만두기</button><button class="btn" data-act="closeSheet">닫기</button>`);
+  },
+  churuChange() {
+    const pts = S.points;
+    sheet(`<h2>어느 급식소로 바꿀까요?</h2><p class="small muted" style="margin:0">바꾸면 연속 기록이 처음부터 시작돼요.</p>
+      <div class="ch-spots">${pts.map(p => `<button data-act="churuPick" data-v="${p.id}" aria-pressed="${CH.pick === p.id}"><span class="dot"></span><b>${esc(p.name)}</b></button>`).join('')}</div>
+      <button class="btn primary" data-act="churuChangeGo">바꾸기</button>`);
+  },
+  churuChangeGo() { if (!CH.pick) { toast('급식소를 골라 주세요'); return; } CH.agree = true; closeSheet(); A.churuJoin(); },
+  churuQuitAsk() { sheet(`<h2>그만둘까요?</h2><p class="muted" style="margin:0;line-height:1.6">연속 기록과 인증 사진, 서버에 둔 급식소 위치가 바로 지워져요. 언제든 다시 시작할 수 있어요.</p><button class="btn danger" data-act="churuQuit">그만두기</button><button class="btn" data-act="closeSheet">계속할게요</button>`); },
+  async churuQuit() { const r = await AU().churu('quit', {}, 'POST'); closeSheet(); if (!r.error) { CH.data = r; delete S.churuPoint; save(); } render(); toast('챌린지를 그만뒀어요. 기록을 지웠어요'); },
+  async churuCheckin() {
+    if (CH.busy) return;
+    const p = S.churuPoint && pt(S.churuPoint);
+    CH.busy = true; render(); toast('위치를 확인하는 중…');
+    const pos = await getPosition();
+    if (!pos) { CH.busy = false; render(); toast('위치를 확인할 수 없어요. 위치 권한을 켜 주세요'); return; }
+    if (p) {   // 서버에서 다시 확인하지만, 멀리 있으면 사진 찍기 전에 미리 알려준다
+      const m = geoM(pos.lat, pos.lng, p.lat, p.lng);
+      if (m > CH.data.near_m) { CH.busy = false; render(); toast(`급식소에서 ${Math.round(m)}m 떨어져 있어요. ${CH.data.near_m}m 안에서 인증해 주세요`); return; }
+    }
+    const raw = await churuShot();
+    if (!raw) { CH.busy = false; render(); return; }
+    const photo = await boardJpeg(raw);
+    if (!photo) { CH.busy = false; render(); toast('사진을 줄이지 못했어요. 다시 찍어 주세요'); return; }
+    const r = await AU().churu('checkin', { lat: pos.lat, lng: pos.lng, photo }, 'POST');
+    CH.busy = false;
+    if (r.error) { toast(r.message || '인증하지 못했어요'); render(); return; }
+    CH.data = r; CH.bump = true; render(); setTimeout(() => { CH.bump = false; }, 1200);
+    toast(r.status === 'done' ? '30일 달성! 츄르를 받으러 가요' : `${r.count}일째 인증 완료!`);
+  },
+  async churuClaim() {
+    CH.phone = $('#chPhone').value.trim(); CH.agreePhone = $('#chAgreePhone').checked;
+    if (!/^01[016789]-?\d{3,4}-?\d{4}$/.test(CH.phone.replace(/\s/g, ''))) { toast('휴대폰 번호를 다시 확인해 주세요'); return; }
+    if (!CH.agreePhone) { toast('번호 수집 동의에 체크해 주세요'); return; }
+    CH.busy = true; render();
+    const r = await AU().churu('claim', { phone: CH.phone, agree: true }, 'POST');
+    CH.busy = false;
+    if (r.error) { toast(r.message || '신청하지 못했어요'); render(); return; }
+    CH.data = r; CH.phone = ''; render(); toast('신청했어요! 확인되면 쿠폰을 보내드려요');
+  },
+};
+
+Object.assign(A, SA, BA, LA, BDA, CHA);
 // 공유 중인 급식소를 고치면 공유본도 따라 바뀐다
 ['renamePoint', 'saveTime', 'delTime', 'saveCat', 'delCat'].forEach(k => {
   const f = A[k];
@@ -1680,6 +1855,7 @@ render();
     SH.loaded = false; SH.owned = []; SH.joined = []; SH.pending = 0;
     LS.loaded = false; LS.mine = []; LS.nearby = []; LS.unread = 0; BK.consent = null; BK.count = 0;
     BD.loaded = false; BD.posts = []; BD.unread = 0; BD.post = null;
+    CH.loaded = false; CH.data = null;
     if (u) { loadShares(true); loadLost(true); loadBoard(); checkBackup(); } else { render(); syncOverlays(); }
   });
   await AU().ready;

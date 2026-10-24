@@ -19,3 +19,5 @@ STORAGE="$T/storage" DBDSN="sqlite:$T/test.db" php tests/backup-lost-test.php | 
 grep -q "ALL PASSED" "$T/result3.txt"
 STORAGE="$T/storage" DBDSN="sqlite:$T/test.db" php tests/board-test.php | tee "$T/result4.txt"
 grep -q "ALL PASSED" "$T/result4.txt"
+STORAGE="$T/storage" DBDSN="sqlite:$T/test.db" php tests/churu-test.php | tee "$T/result5.txt"
+grep -q "ALL PASSED" "$T/result5.txt"

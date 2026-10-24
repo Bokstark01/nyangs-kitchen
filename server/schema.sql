@@ -217,3 +217,28 @@ CREATE TABLE IF NOT EXISTS nk_regions (
   k    VARCHAR(24) NOT NULL PRIMARY KEY,
   name VARCHAR(40) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 츄르 챌린지: 한 급식소에서 30일 연속 급식 인증하면 츄르 한 봉 (계정당 평생 1번)
+CREATE TABLE IF NOT EXISTS nk_churu (
+  user_id      INT UNSIGNED NOT NULL PRIMARY KEY,
+  status       VARCHAR(10)  NOT NULL DEFAULT 'active',  -- active | done | claimed | sent | rejected
+  spot_name    VARCHAR(40)  NOT NULL,
+  lat          DOUBLE       NOT NULL,                    -- 인증할 급식소 위치 (챌린지가 끝나면 지움)
+  lng          DOUBLE       NOT NULL,
+  start_day    CHAR(10)     NOT NULL,                    -- 한국 날짜 YYYY-MM-DD
+  done_day     CHAR(10)     NULL,
+  phone        VARCHAR(20)  NULL,                        -- 쿠폰 받을 번호 (보내거나 반려하면 바로 지움)
+  note         VARCHAR(200) NOT NULL DEFAULT '',         -- 반려 사유
+  created_at   INT UNSIGNED NOT NULL,
+  updated_at   INT UNSIGNED NOT NULL,
+  KEY idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS nk_churu_days (
+  user_id    INT UNSIGNED NOT NULL,
+  day        CHAR(10)     NOT NULL,                      -- 서버(한국) 날짜. 휴대폰 시계는 믿지 않는다
+  photo      VARCHAR(40)  NOT NULL,
+  meters     INT UNSIGNED NOT NULL,                      -- 인증할 때 급식소까지 거리 (현재 위치 좌표는 저장하지 않음)
+  created_at INT UNSIGNED NOT NULL,
+  PRIMARY KEY (user_id, day)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

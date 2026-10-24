@@ -280,6 +280,7 @@ window.NK_AUTH = {
   share(action, data, method) { return window.NK_AUTH.call('share.php', action, data, method); },
   backup(action, data, method) { return window.NK_AUTH.call('backup.php', action, data, method); },
   lost(action, data, method) { return window.NK_AUTH.call('lost.php', action, data, method); },
+  churu(action, data, method) { return window.NK_AUTH.call('churu.php', action, data, method); },
   // 이웃 게시판: GET은 query 객체를 주소 뒤에 붙인다
   board(action, data, method, query) {
     const q = query ? Object.entries(query).filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => `&${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('') : '';

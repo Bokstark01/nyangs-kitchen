@@ -266,6 +266,54 @@ try {
         exit;
     }
 
+    /* ---------- 츄르 챌린지: 30일 달성자 사진 확인 → 쿠폰 발송 ---------- */
+    if ($p === 'churuphoto') {
+        $u = (int)($_GET['u'] ?? 0); $f = (string)($_GET['f'] ?? '');
+        if (!preg_match('/^[a-f0-9]{32}\.jpg$/', $f) || !is_file(churu_dir($u) . "/$f")) { http_response_code(404); exit; }
+        header('Content-Type: image/jpeg'); readfile(churu_dir($u) . "/$f"); exit;
+    }
+    if ($p === 'churu_act' && $method === 'POST') {
+        check_csrf();
+        $u = (int)($_POST['u'] ?? 0); $do = (string)($_POST['do'] ?? '');
+        $c = find_churu($u);
+        if ($c && $c['status'] === 'claimed' && in_array($do, ['sent', 'reject'], true)) {
+            $note = $do === 'reject' ? cut((string)($_POST['note'] ?? ''), 200) : '';
+            // 보냈든 반려했든 번호·사진·급식소 위치는 바로 지운다 (결과와 날짜만 남김)
+            churu_wipe_photos($u);
+            $db->prepare('UPDATE nk_churu SET status = ?, phone = NULL, lat = 0, lng = 0, note = ?, updated_at = ? WHERE user_id = ?')
+                ->execute([$do === 'sent' ? 'sent' : 'rejected', $note, now(), $u]);
+            alog('churu_' . $do, "회원 #$u");
+            $_SESSION['flash'] = "회원 #$u: " . ($do === 'sent' ? '보냄 처리하고 번호·사진을 지웠어요' : '반려하고 번호·사진을 지웠어요');
+        }
+        header('Location: admin.php?p=churu'); exit;
+    }
+    if ($p === 'churu') {
+        alog('view_churu');
+        $rows = $db->query("SELECT c.*, u.nickname, u.email, u.provider FROM nk_churu c LEFT JOIN nk_users u ON u.id = c.user_id WHERE c.status = 'claimed' ORDER BY c.updated_at")->fetchAll();
+        $cnt = []; foreach ($db->query('SELECT status, COUNT(*) AS n FROM nk_churu GROUP BY status')->fetchAll() as $r) $cnt[$r['status']] = (int)$r['n'];
+        page_head('츄르 챌린지');
+        $flash = (string)($_SESSION['flash'] ?? ''); unset($_SESSION['flash']);
+        $cs = h(csrf());
+        echo admin_nav('churu') . '<main class="pad">';
+        if ($flash) echo '<p class="flash">' . h($flash) . '</p>';
+        echo '<h2>츄르 챌린지</h2><p class="muted">진행 중 ' . ($cnt['active'] ?? 0) . '명 · 번호 입력 대기 ' . ($cnt['done'] ?? 0) . '명 · <b>확인 대기 ' . ($cnt['claimed'] ?? 0) . '명</b> · 보냄 ' . ($cnt['sent'] ?? 0) . '명 · 반려 ' . ($cnt['rejected'] ?? 0) . '명</p>'
+           . '<p class="muted">사진 30장이 같은 급식소에서 매일 찍은 게 맞는지 보고, 쿠폰을 보낸 뒤 <b>보냄</b>을 누르세요. 누르는 순간 번호와 사진이 지워져요.</p>';
+        if (!$rows) echo '<p class="muted">확인할 신청이 없어요.</p>';
+        foreach ($rows as $r) {
+            $u = (int)$r['user_id'];
+            $ds = $db->prepare('SELECT day, photo, meters FROM nk_churu_days WHERE user_id = ? ORDER BY day');
+            $ds->execute([$u]); $days = $ds->fetchAll();
+            echo '<article class="lost"><div class="bd"><b>' . h($r['nickname'] ?? '탈퇴') . '</b> (회원 #' . $u . ', ' . h($r['email'] ?: $r['provider'] . ' 로그인') . ')'
+               . '<p>받을 번호: <b>' . h($r['phone']) . '</b> · 급식소: ' . h($r['spot_name']) . ' · ' . h($r['start_day']) . ' ~ ' . h((string)$r['done_day']) . ' · 인증 ' . count($days) . '일</p>'
+               . '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0">' . implode('', array_map(fn($d) => '<a href="admin.php?p=churuphoto&u=' . $u . '&f=' . h($d['photo']) . '" target="_blank" style="display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;color:#8a84a3;text-decoration:none"><img src="admin.php?p=churuphoto&u=' . $u . '&f=' . h($d['photo']) . '" alt="" style="width:92px;height:92px;object-fit:cover;border-radius:12px"><span>' . h(substr((string)$d['day'], 5)) . ' · ' . (int)$d['meters'] . 'm</span></a>', $days)) . '</div>'
+               . '<div class="acts"><form method="post" action="admin.php?p=churu_act" onsubmit="return confirm(\'쿠폰을 보냈나요? 번호와 사진이 지워져요.\')"><input type="hidden" name="csrf" value="' . $cs . '"><input type="hidden" name="u" value="' . $u . '"><input type="hidden" name="do" value="sent"><button>보냄</button></form>'
+               . '<form method="post" action="admin.php?p=churu_act" onsubmit="return confirm(\'반려할까요? 이 회원은 다시 참여할 수 없어요.\')"><input type="hidden" name="csrf" value="' . $cs . '"><input type="hidden" name="u" value="' . $u . '"><input type="hidden" name="do" value="reject"><input name="note" placeholder="반려 이유 (회원에게 보여요)" maxlength="200" style="min-width:220px"><button class="ghost">반려</button></form></div>'
+               . '</div></article>';
+        }
+        echo '</main></body></html>';
+        exit;
+    }
+
     /* ---------- 화면 ---------- */
     $stat = fn(string $sql) => (int)$db->query($sql)->fetchColumn();
     $users = $stat('SELECT COUNT(*) FROM nk_users');
@@ -374,7 +422,8 @@ HTML;
 function admin_nav(string $on): string {
     $n = (int)db()->query("SELECT COUNT(*) FROM nk_lost WHERE status = 'pending'")->fetchColumn();
     $b = (int)db()->query('SELECT (SELECT COUNT(*) FROM nk_posts WHERE hidden = 1 OR (hidden = 0 AND report_count > 0)) + (SELECT COUNT(*) FROM nk_comments WHERE hidden = 1 OR (hidden = 0 AND report_count > 0))')->fetchColumn();
-    $items = ['' => '지도', 'lost' => '유실 신고' . ($n ? " ($n)" : ''), 'board' => '게시판' . ($b ? " (신고 $b)" : ''), 'log' => '열람 기록'];
+    $cz = (int)db()->query("SELECT COUNT(*) FROM nk_churu WHERE status = 'claimed'")->fetchColumn();
+    $items = ['' => '지도', 'lost' => '유실 신고' . ($n ? " ($n)" : ''), 'board' => '게시판' . ($b ? " (신고 $b)" : ''), 'churu' => '츄르' . ($cz ? " ($cz)" : ''), 'log' => '열람 기록'];
     $h = '';
     foreach ($items as $k => $label) $h .= '<a href="admin.php' . ($k !== '' ? '?p=' . $k : '') . '"' . ($k === $on ? ' class="on"' : '') . '>' . h($label) . '</a>';
     return '<header><b>냥\'s 키친 관리자</b><nav>' . $h . '<a href="admin.php?p=logout">로그아웃</a></nav></header>';

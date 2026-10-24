@@ -71,6 +71,8 @@ function delete_user_shares(int $userId): void {
     $db->prepare('DELETE FROM nk_lost_replies WHERE user_id = ?')->execute([$userId]);
     // 이웃 게시판: 내 글·댓글·신고·차단 기록
     delete_user_board($userId);
+    // 츄르 챌린지: 인증 사진·급식소 위치·받을 번호
+    delete_user_churu($userId);
 }
 
 function clean_times($v): array {

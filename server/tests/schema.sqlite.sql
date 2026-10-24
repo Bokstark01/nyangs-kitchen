@@ -71,3 +71,6 @@ CREATE TABLE IF NOT EXISTS nk_board_reports (id INTEGER PRIMARY KEY AUTOINCREMEN
   reason VARCHAR(200) NOT NULL DEFAULT '', created_at INT NOT NULL, UNIQUE (kind, target_id, user_id));
 CREATE TABLE IF NOT EXISTS nk_blocks (user_id INT NOT NULL, blocked_id INT NOT NULL, created_at INT NOT NULL, PRIMARY KEY (user_id, blocked_id));
 CREATE TABLE IF NOT EXISTS nk_regions (k VARCHAR(24) NOT NULL PRIMARY KEY, name VARCHAR(40) NOT NULL);
+CREATE TABLE IF NOT EXISTS nk_churu (user_id INTEGER PRIMARY KEY, status VARCHAR(10) NOT NULL DEFAULT 'active', spot_name VARCHAR(40) NOT NULL, lat DOUBLE NOT NULL, lng DOUBLE NOT NULL,
+  start_day CHAR(10) NOT NULL, done_day CHAR(10) NULL, phone VARCHAR(20) NULL, note VARCHAR(200) NOT NULL DEFAULT '', created_at INT NOT NULL, updated_at INT NOT NULL);
+CREATE TABLE IF NOT EXISTS nk_churu_days (user_id INT NOT NULL, day CHAR(10) NOT NULL, photo VARCHAR(40) NOT NULL, meters INT NOT NULL, created_at INT NOT NULL, PRIMARY KEY (user_id, day));
