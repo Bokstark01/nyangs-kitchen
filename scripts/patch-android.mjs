@@ -87,21 +87,28 @@ for (const d of fs.readdirSync(res)) {
   const f = path.join(res, d, 'splash.png');
   if (d.startsWith('drawable') && fs.existsSync(f)) fs.rmSync(f);
 }
-fs.mkdirSync(path.join(res, 'drawable-xxhdpi'), { recursive: true });
-fs.copyFileSync(path.join(root, 'resources/android/nk_splash_art.png'), path.join(res, 'drawable-xxhdpi/nk_splash_art.png'));
-fs.copyFileSync(path.join(root, 'resources/android/nk_splash_icon.png'), path.join(res, 'drawable-xxhdpi/nk_splash_icon.png'));
+// 시작 화면은 라벤더 단색만 보여 준다. 고양이는 웹 인트로에서 한 번만 등장해야 두 번 튀어나오지 않는다.
+fs.writeFileSync(path.join(res, 'drawable/nk_splash_blank.xml'), `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@android:color/transparent" />
+    <size android:width="288dp" android:height="288dp" />
+</shape>
+`);
 fs.writeFileSync(path.join(res, 'drawable/splash.xml'), `<?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/nk_splash" />
-    <item><bitmap android:gravity="center" android:src="@drawable/nk_splash_art" /></item>
 </layer-list>
 `);
 const stylesPath = path.join(res, 'values/styles.xml');
 let styles = fs.readFileSync(stylesPath, 'utf8');
 styles = styles.replace(/(<style name="AppTheme.NoActionBarLaunch"[^>]*>)/, `$1
         <item name="windowSplashScreenBackground">@color/nk_splash</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/nk_splash_icon</item>
-        <item name="android:statusBarColor">@color/nk_splash</item>`);
+        <item name="windowSplashScreenAnimatedIcon">@drawable/nk_splash_blank</item>
+        <item name="android:statusBarColor">@color/nk_splash</item>
+        <item name="android:navigationBarColor">@color/nk_splash</item>`);
+// 시작 화면이 사라진 뒤 웹 화면이 그려지기 전 잠깐 보이는 창 배경도 같은 라벤더로 (흰 화면 깜빡임 방지)
+styles = styles.replace(/(<style name="AppTheme.NoActionBar"[^>]*>)/, `$1
+        <item name="android:windowBackground">@color/nk_splash</item>`);
 fs.writeFileSync(stylesPath, styles);
 
 // 서명과 버전

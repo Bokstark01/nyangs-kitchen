@@ -170,10 +170,13 @@ button{cursor:pointer}
 .intro::before,.intro::after{content:"";position:absolute;border-radius:50%;filter:blur(40px);opacity:.55;pointer-events:none}
 .intro::before{width:240px;height:240px;background:#FFD9C7;left:-80px;top:12%}
 .intro::after{width:280px;height:280px;background:#A99BFF;right:-90px;bottom:14%}
-.intro.hide{opacity:0;pointer-events:none}
+.intro.hide{opacity:0;pointer-events:none;transition:opacity .5s .18s ease}
+.intro.hide .intro-art,.intro.hide .intro-title,.intro.hide .intro-sub{transform:scale(.94) translateY(-6px);opacity:0;transition:transform .4s ease,opacity .3s ease}
+.intro-veil{position:absolute;inset:0;background:#8E7CF6;z-index:1;animation:nkVeil .7s .05s ease-out both;pointer-events:none}
+@keyframes nkVeil{to{opacity:0}}
 .intro-art{width:min(58vw,250px);position:relative;z-index:1}
-.intro-title{position:relative;z-index:1;margin:18px 0 0;font-family:var(--display);font-weight:800;font-size:42px;line-height:1.1;color:#fff;letter-spacing:-.8px;text-shadow:0 2px 16px rgba(80,50,170,.35);animation:nkRise .6s .5s var(--spring) both}
-.intro-sub{position:relative;z-index:1;margin:6px 0 0;font-size:16px;font-weight:600;color:#fff;font-family:var(--body);text-shadow:0 1px 10px rgba(80,50,170,.45);animation:nkRise .6s .62s var(--spring) both}
+.intro-title{position:relative;z-index:1;margin:18px 0 0;font-family:var(--display);font-weight:800;font-size:42px;line-height:1.1;color:#fff;letter-spacing:-.8px;text-shadow:0 2px 16px rgba(80,50,170,.35);animation:nkRise .6s .85s var(--spring) both}
+.intro-sub{position:relative;z-index:1;margin:6px 0 0;font-size:16px;font-weight:600;color:#fff;font-family:var(--body);text-shadow:0 1px 10px rgba(80,50,170,.45);animation:nkRise .6s 1s var(--spring) both}
 @keyframes nkBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
 .brand,.h-display{font-family:var(--display)}
 
@@ -277,14 +280,14 @@ button{cursor:pointer}
 @media (prefers-color-scheme: dark){.brand{background:linear-gradient(120deg,#B9ADFF 0%,#CDB8FF 55%,#FFB8A0 100%);-webkit-background-clip:text;background-clip:text}}
 
 /* 고양이 그림(인트로·로그인 공용) */
-.nk-art{position:relative;aspect-ratio:567/763}
+.nk-art{position:relative;aspect-ratio:679/915}
 .nk-art img{position:absolute;display:block;height:auto;user-select:none;-webkit-user-drag:none;pointer-events:none}
-.nk-cat{left:0;top:0;width:100%;transform-origin:50% 96%;filter:drop-shadow(0 10px 18px rgba(75,59,184,.28));animation:nkCatIn .75s .2s var(--spring) both,nkBreath 2.8s 1.1s ease-in-out infinite}
-.nk-bowl{left:29.45%;top:82.04%;width:43.2%;filter:drop-shadow(0 6px 10px rgba(180,80,40,.28));animation:nkBowlIn .55s var(--spring) both}
-.nk-shadow{position:absolute;left:10%;right:10%;bottom:-2%;height:8%;border-radius:50%;background:radial-gradient(closest-side,rgba(75,59,184,.32),rgba(75,59,184,0));animation:nkFade .6s .3s both}
+.nk-cat{left:0;top:0;width:100%;transform-origin:50% 96%;filter:drop-shadow(0 10px 18px rgba(75,59,184,.28));animation:nkCatIn .8s .45s var(--spring) both,nkBreath 3s 1.4s ease-in-out infinite}
+.nk-bowl{left:29.31%;top:81.86%;width:43.3%;filter:drop-shadow(0 6px 10px rgba(180,80,40,.28));animation:nkBowlIn .6s .25s var(--spring) both}
+.nk-shadow{position:absolute;left:10%;right:10%;bottom:-2%;height:8%;border-radius:50%;background:radial-gradient(closest-side,rgba(75,59,184,.32),rgba(75,59,184,0));animation:nkFade .6s .5s both}
 .nk-heart{position:absolute;width:9%;fill:#FFB8A0;opacity:0;filter:drop-shadow(0 2px 4px rgba(255,120,100,.35))}
-.nk-heart.h1{left:76%;top:14%;animation:nkHeart 3.2s 1.2s ease-out infinite}
-.nk-heart.h2{left:84%;top:24%;width:6.5%;fill:#fff;animation:nkHeart 3.2s 2.6s ease-out infinite}
+.nk-heart.h1{left:76%;top:14%;animation:nkHeart 3.2s 1.5s ease-out infinite}
+.nk-heart.h2{left:84%;top:24%;width:6.5%;fill:#fff;animation:nkHeart 3.2s 2.4s ease-out infinite}
 @keyframes nkCatIn{from{transform:translateY(16%) scale(.86);opacity:0}}
 @keyframes nkBowlIn{from{transform:translateY(40%) scale(.6);opacity:0}}
 @keyframes nkFade{from{opacity:0}}

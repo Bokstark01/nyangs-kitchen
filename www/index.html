@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" class="booting">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
@@ -8,13 +8,15 @@
 <title>냥's 키친</title>
 <link rel="stylesheet" href="vendor/leaflet.css">
 <link rel="stylesheet" href="style.css">
+<style>html.booting,html.booting body{background:#8E7CF6}</style>
 </head>
 <body>
 <div id="intro" class="intro" role="img" aria-label="냥's 키친">
+  <div class="intro-veil"></div>
   <div class="intro-art nk-art" role="img" aria-label="밥그릇 앞에 앉은 하얀 아기 고양이">
     <span class="nk-shadow"></span>
-    <img class="nk-cat" src="img/nk-cat.webp" alt="" width="567" height="625" decoding="async">
-    <img class="nk-bowl" src="img/nk-bowl.webp" alt="" width="245" height="137" decoding="async">
+    <img class="nk-cat" src="img/nk-cat.webp" alt="" width="679" height="749" decoding="sync" fetchpriority="high">
+    <img class="nk-bowl" src="img/nk-bowl.webp" alt="" width="294" height="166" decoding="sync" fetchpriority="high">
     <svg class="nk-heart h1" viewBox="0 0 24 22" aria-hidden="true"><path d="M12 21C5 15.5 1 12 1 7a5.5 5.5 0 0 1 11-1 5.5 5.5 0 0 1 11 1c0 5-4 8.5-11 14z"/></svg>
     <svg class="nk-heart h2" viewBox="0 0 24 22" aria-hidden="true"><path d="M12 21C5 15.5 1 12 1 7a5.5 5.5 0 0 1 11-1 5.5 5.5 0 0 1 11 1c0 5-4 8.5-11 14z"/></svg>
   </div>

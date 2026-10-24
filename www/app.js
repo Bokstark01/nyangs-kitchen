@@ -1608,9 +1608,9 @@ async function setupNative() {
 const introDone = new Promise(res => {
   const el = $('#intro'); if (!el) return res();
   let done = false;
-  const finish = () => { if (done) return; done = true; el.classList.add('hide'); setTimeout(() => { el.remove(); res(); }, 450); };
+  const finish = () => { if (done) return; done = true; document.documentElement.classList.remove('booting'); el.classList.add('hide'); setTimeout(() => { el.remove(); res(); }, 700); };
   el.addEventListener('click', finish);
-  setTimeout(finish, 2200);
+  setTimeout(finish, 3600);
 });
 
 $('#bellBtn').innerHTML = I.bell;

@@ -67,7 +67,7 @@ function say(msg, kind) { notice = msg || ''; noticeKind = kind || 'info'; rende
 
 /* ---------- 화면 ---------- */
 const catSvg = () => '<div class="auth-art nk-art" role="img" aria-label="밥그릇 앞에 앉은 하얀 아기 고양이"><span class="nk-shadow"></span>'
-  + '<img class="nk-cat" src="img/nk-cat.webp" alt="" width="567" height="625"><img class="nk-bowl" src="img/nk-bowl.webp" alt="" width="245" height="137"></div>';
+  + '<img class="nk-cat" src="img/nk-cat.webp" alt="" width="679" height="749"><img class="nk-bowl" src="img/nk-bowl.webp" alt="" width="294" height="166"></div>';
 let CAT = '';
 
 const KAKAO_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="#000" d="M12 3.2C6.5 3.2 2 6.7 2 11c0 2.8 1.9 5.2 4.7 6.6l-1 3.7c-.1.4.3.7.6.5l4.4-2.9c.4 0 .9.1 1.3.1 5.5 0 10-3.5 10-7.9S17.5 3.2 12 3.2z"/></svg>';
