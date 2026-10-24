@@ -280,10 +280,10 @@ button{cursor:pointer}
 @media (prefers-color-scheme: dark){.brand{background:linear-gradient(120deg,#B9ADFF 0%,#CDB8FF 55%,#FFB8A0 100%);-webkit-background-clip:text;background-clip:text}}
 
 /* 고양이 그림(인트로·로그인 공용) */
-.nk-art{position:relative;aspect-ratio:679/915}
+.nk-art{position:relative;aspect-ratio:855/1142}
 .nk-art img{position:absolute;display:block;height:auto;user-select:none;-webkit-user-drag:none;pointer-events:none}
 .nk-cat{left:0;top:0;width:100%;transform-origin:50% 96%;filter:drop-shadow(0 10px 18px rgba(75,59,184,.28));animation:nkCatIn .8s .45s var(--spring) both,nkBreath 3s 1.4s ease-in-out infinite}
-.nk-bowl{left:29.31%;top:81.86%;width:43.3%;filter:drop-shadow(0 6px 10px rgba(180,80,40,.28));animation:nkBowlIn .6s .25s var(--spring) both}
+.nk-bowl{left:29.59%;top:82.31%;width:42.46%;filter:drop-shadow(0 6px 10px rgba(180,80,40,.28));animation:nkBowlIn .6s .25s var(--spring) both}
 .nk-shadow{position:absolute;left:10%;right:10%;bottom:-2%;height:8%;border-radius:50%;background:radial-gradient(closest-side,rgba(75,59,184,.32),rgba(75,59,184,0));animation:nkFade .6s .5s both}
 .nk-heart{position:absolute;width:9%;fill:#FFB8A0;opacity:0;filter:drop-shadow(0 2px 4px rgba(255,120,100,.35))}
 .nk-heart.h1{left:76%;top:14%;animation:nkHeart 3.2s 1.5s ease-out infinite}
@@ -295,3 +295,5 @@ button{cursor:pointer}
 @keyframes nkHeart{0%{opacity:0;transform:translateY(0) scale(.5)}18%{opacity:1;transform:translateY(-10px) scale(1)}70%{opacity:.85}100%{opacity:0;transform:translateY(-46px) scale(.9) rotate(12deg)}}
 .auth-art .nk-heart,.auth-hero.compact .nk-shadow{display:none}
 @media (prefers-reduced-motion:reduce){.nk-art *{animation:none!important;opacity:1}.nk-heart{display:none}}
+/* 고양이 발밑 그림자 (원본 그림자를 지웠으므로 떠 보이지 않게) */
+.nk-art::before{content:"";position:absolute;left:16%;right:10%;top:77.5%;height:6.5%;border-radius:50%;background:radial-gradient(closest-side,rgba(75,59,184,.34),rgba(75,59,184,0));animation:nkFade .6s .6s both}
