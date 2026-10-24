@@ -324,11 +324,11 @@ button{cursor:pointer}
 .health-add .catrow button{min-width:60px}
 
 /* 츄르 챌린지: 마스코트가 뒤에서 츄르 게이지를 안고 있음 */
-.churu-hug{position:relative;width:100%;aspect-ratio:1/.709}
+.churu-hug{position:relative;width:100%;aspect-ratio:1/.737}
 .churu-hug img,.churu-hug svg{position:absolute;display:block;user-select:none;-webkit-user-drag:none;pointer-events:none}
 .ch-cat{left:22%;width:56%;top:0;height:auto;transform-origin:50% 90%;animation:chBreath 3.2s ease-in-out infinite}
-.ch-gauge{left:0;width:100%;top:76.69%;height:21.44%;overflow:visible;filter:drop-shadow(0 8px 12px rgba(75,59,184,.18))}
-.ch-paws{left:44.01%;width:17.29%;top:71.33%;height:auto}
+.ch-gauge{left:0;width:100%;top:73.77%;height:24.42%;overflow:visible;filter:drop-shadow(0 8px 12px rgba(75,59,184,.18))}
+.ch-paws{left:44.01%;width:17.29%;top:68.9%;height:auto}
 .ch-fill{transform-origin:0 50%;transform-box:fill-box}
 .churu-hug.bump .ch-fill{animation:chGrow .9s var(--spring) both}
 .churu-hug.bump .ch-paws{animation:chHop .7s var(--spring) both}

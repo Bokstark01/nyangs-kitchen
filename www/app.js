@@ -1600,39 +1600,48 @@ async function loadChuru() {
   if ((R.tab === 'schedule' && !R.screen) || R.screen === 'churu') render();
 }
 // 마스코트가 뒤에서 츄르 게이지를 안고 있는 그림 (n/goal 만큼 차오름)
-// 스틱 파우치(길쭉한 츄르 봉지) 모양. 비어 있을 땐 무채색, 인증한 날만큼 색이 채워진다
-const zig = (x, dir) => { let d = ''; for (let y = 6, i = 0; y <= 58; y += 4, i++) d += `L${x + (i % 2 ? dir * 4 : 0)} ${y}`; return d; };
+// 스틱 파우치(길쭉한 츄르 봉지) 모양: 위쪽에 하얀 봉합 띠, 양 끝 압착부, 왼쪽 위 뜯는 표시.
+// 비어 있을 땐 무채색, 인증한 날만큼 따뜻한 주황→토마토색으로 채워진다 (특정 상품의 로고·그림은 쓰지 않음)
 function churuHug(n, goal, opt = {}) {
-  const pct = Math.max(0, Math.min(1, n / goal)), X0 = 30, X1 = 306, fillW = (X1 - X0) * pct, id = 'cg' + Math.random().toString(36).slice(2, 7);
-  const crimp = (x0, x1) => Array.from({ length: Math.floor((x1 - x0) / 3) }, (_, i) => `<line x1="${x0 + 1.5 + i * 3}" x2="${x0 + 1.5 + i * 3}" y1="9" y2="55"/>`).join('');
-  const ticks = Array.from({ length: goal - 1 }, (_, i) => { const x = X0 + (i + 1) * ((X1 - X0) / goal); return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="47" y2="55"/>`; }).join('');
+  const pct = Math.max(0, Math.min(1, n / goal)), X0 = 22, X1 = 318, fillW = (X1 - X0) * pct, id = 'cg' + Math.random().toString(36).slice(2, 7);
+  const crimpV = (x0, x1) => Array.from({ length: Math.floor((x1 - x0) / 2.5) }, (_, i) => `<line x1="${(x0 + 1.25 + i * 2.5).toFixed(2)}" x2="${(x0 + 1.25 + i * 2.5).toFixed(2)}" y1="7" y2="59"/>`).join('');
+  const crimpH = [9, 11.5, 14].map(y => `<line x1="4" x2="336" y1="${y}" y2="${y}"/>`).join('');
+  const ticks = Array.from({ length: goal - 1 }, (_, i) => { const x = X0 + (i + 1) * ((X1 - X0) / goal); return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="50" y2="56"/>`; }).join('');
   const leftOn = n > 0, rightOn = n >= goal;
   return `<div class="churu-hug ${opt.small ? 'small' : ''} ${CH.bump ? 'bump' : ''}" role="img" aria-label="츄르 게이지 ${n}/${goal}일">
     <img class="ch-cat" src="img/nk-cat.webp" alt="" width="855" height="932">
     <svg class="ch-gauge" viewBox="0 0 340 64" preserveAspectRatio="none" aria-hidden="true">
       <defs>
-        <linearGradient id="${id}f" x1="0" x2="1"><stop offset="0" stop-color="#8E7CF6"/><stop offset=".6" stop-color="#B79BFF"/><stop offset="1" stop-color="#FFB8A0"/></linearGradient>
-        <linearGradient id="${id}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F1F0F4"/><stop offset=".55" stop-color="#E4E2E9"/><stop offset="1" stop-color="#D3D0DA"/></linearGradient>
-        <linearGradient id="${id}s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".22" stop-color="#fff" stop-opacity=".12"/><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#2B2640" stop-opacity=".16"/></linearGradient>
-        <clipPath id="${id}c"><rect x="${X0}" y="6" width="${X1 - X0}" height="52" rx="2"/></clipPath>
+        <linearGradient id="${id}f" x1="0" x2="1"><stop offset="0" stop-color="#F59A3C"/><stop offset=".35" stop-color="#EE6B35"/><stop offset="1" stop-color="#D9412E"/></linearGradient>
+        <linearGradient id="${id}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EDECF0"/><stop offset=".6" stop-color="#DEDCE3"/><stop offset="1" stop-color="#CBC8D1"/></linearGradient>
+        <linearGradient id="${id}s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".4"/><stop offset=".3" stop-color="#fff" stop-opacity=".08"/><stop offset=".65" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#2B1A10" stop-opacity=".18"/></linearGradient>
+        <clipPath id="${id}c"><rect x="${X0}" y="16" width="${X1 - X0}" height="43"/></clipPath>
+        <clipPath id="${id}o"><path d="M6 6 H334 Q337 6 337 9 V57 Q337 60 334 60 H6 Q3 60 3 57 V9 Q3 6 6 6Z"/></clipPath>
       </defs>
-      <!-- 양 끝 봉합부 (톱니 모양 + 압착 줄무늬) -->
-      <path d="M${X0} 6 L8 6 ${zig(4, 1).replace(/^L/, 'L')} L${X0} 58 Z" fill="${leftOn ? '#8E7CF6' : '#D9D7DF'}"/>
-      <path d="M${X1} 6 L332 6 ${zig(336, -1)} L${X1} 58 Z" fill="${rightOn ? '#FFB8A0' : '#D9D7DF'}"/>
-      <g stroke="#fff" stroke-opacity=".35" stroke-width="1">${crimp(8, X0)}${crimp(X1, 332)}</g>
-      <!-- 뜯는 홈 -->
-      <path d="M318 6 L321 12 L324 6 Z" fill="#fff"/>
-      <path d="M321 14 V56" stroke="#fff" stroke-opacity=".6" stroke-width="1" stroke-dasharray="2 2.5"/>
-      <!-- 몸통: 비어 있으면 회색, 채운 만큼 색 -->
-      <rect x="${X0}" y="6" width="${X1 - X0}" height="52" rx="2" fill="url(#${id}g)"/>
-      <g clip-path="url(#${id}c)">
-        <rect class="ch-fill" x="${X0}" y="6" width="${fillW.toFixed(1)}" height="52" fill="url(#${id}f)"/>
-        ${pct > 0 && pct < 1 ? `<path d="M${(X0 + fillW).toFixed(1)} 6 q-3 13 0 26 t0 26" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="1.5"/>` : ''}
-        <g stroke="#fff" stroke-opacity=".45" stroke-width="1">${ticks}</g>
-        <rect x="${X0}" y="6" width="${X1 - X0}" height="52" fill="url(#${id}s)"/>
-        <path d="M${X0 + 6} 13 H${X1 - 8}" stroke="#fff" stroke-opacity=".65" stroke-width="3" stroke-linecap="round"/>
+      <g clip-path="url(#${id}o)">
+        <!-- 몸통 바탕 (빈 봉지는 회색) -->
+        <rect x="3" y="6" width="334" height="54" fill="url(#${id}g)"/>
+        <!-- 양 끝: 시작하면 왼쪽, 30일이면 오른쪽에 색 -->
+        <rect x="3" y="16" width="${X0 - 3}" height="44" fill="${leftOn ? '#F59A3C' : '#D3D0D9'}"/>
+        <rect x="${X1}" y="16" width="${337 - X1}" height="44" fill="${rightOn ? '#D9412E' : '#D3D0D9'}"/>
+        <g clip-path="url(#${id}c)">
+          <rect class="ch-fill" x="${X0}" y="16" width="${fillW.toFixed(1)}" height="43" fill="url(#${id}f)"/>
+          ${pct > 0 && pct < 1 ? `<path d="M${(X0 + fillW).toFixed(1)} 16 q-3 11 0 22 t0 22" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.5"/>` : ''}
+          <g stroke="#fff" stroke-opacity=".4" stroke-width="1">${ticks}</g>
+        </g>
+        <!-- 위쪽 하얀 봉합 띠 -->
+        <rect x="3" y="6" width="334" height="10" fill="#F4F3F7"/>
+        <g stroke="#D3D1DA" stroke-width=".8">${crimpH}</g>
+        <!-- 양 끝 압착 줄무늬 -->
+        <g stroke="#fff" stroke-opacity=".35" stroke-width=".8">${crimpV(3, 13)}${crimpV(327, 337)}</g>
+        <!-- 비닐 광택 -->
+        <rect x="3" y="16" width="334" height="44" fill="url(#${id}s)"/>
+        <path d="M30 22 H310" stroke="#fff" stroke-opacity=".55" stroke-width="2.4" stroke-linecap="round"/>
       </g>
-      <path d="M${X0} 6 V58 M${X1} 6 V58" stroke="#fff" stroke-opacity=".7" stroke-width="1.2"/>
+      <!-- 봉지 테두리와 뜯는 홈 -->
+      <path d="M6 6 H334 Q337 6 337 9 V57 Q337 60 334 60 H6 Q3 60 3 57 V9 Q3 6 6 6Z" fill="none" stroke="#CFCCD6" stroke-width="1"/>
+      <path d="M14 6 L16.5 10.5 L19 6 Z" fill="#fff" stroke="#CFCCD6" stroke-width=".8"/>
+      <path d="M${X0} 16 V60 M${X1} 16 V60" stroke="#fff" stroke-opacity=".5" stroke-width="1"/>
     </svg>
     <img class="ch-paws" src="img/nk-paws.webp" alt="" width="264" height="114">
   </div>`;
