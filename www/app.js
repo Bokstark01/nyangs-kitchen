@@ -1600,18 +1600,39 @@ async function loadChuru() {
   if ((R.tab === 'schedule' && !R.screen) || R.screen === 'churu') render();
 }
 // 마스코트가 뒤에서 츄르 게이지를 안고 있는 그림 (n/goal 만큼 차오름)
+// 스틱 파우치(길쭉한 츄르 봉지) 모양. 비어 있을 땐 무채색, 인증한 날만큼 색이 채워진다
+const zig = (x, dir) => { let d = ''; for (let y = 6, i = 0; y <= 58; y += 4, i++) d += `L${x + (i % 2 ? dir * 4 : 0)} ${y}`; return d; };
 function churuHug(n, goal, opt = {}) {
-  const pct = Math.max(0, Math.min(1, n / goal)), fillW = 4 + 288 * pct, id = 'cg' + Math.random().toString(36).slice(2, 7);
-  const ticks = Array.from({ length: goal - 1 }, (_, i) => { const x = 4 + (i + 1) * (288 / goal); const on = i + 1 < n; return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="40" y2="55" stroke="${on ? '#fff' : '#E3DCF3'}" stroke-opacity="${on ? .45 : 1}" stroke-width="1.4"/>`; }).join('');
+  const pct = Math.max(0, Math.min(1, n / goal)), X0 = 30, X1 = 306, fillW = (X1 - X0) * pct, id = 'cg' + Math.random().toString(36).slice(2, 7);
+  const crimp = (x0, x1) => Array.from({ length: Math.floor((x1 - x0) / 3) }, (_, i) => `<line x1="${x0 + 1.5 + i * 3}" x2="${x0 + 1.5 + i * 3}" y1="9" y2="55"/>`).join('');
+  const ticks = Array.from({ length: goal - 1 }, (_, i) => { const x = X0 + (i + 1) * ((X1 - X0) / goal); return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="47" y2="55"/>`; }).join('');
+  const leftOn = n > 0, rightOn = n >= goal;
   return `<div class="churu-hug ${opt.small ? 'small' : ''} ${CH.bump ? 'bump' : ''}" role="img" aria-label="츄르 게이지 ${n}/${goal}일">
     <img class="ch-cat" src="img/nk-cat.webp" alt="" width="855" height="932">
     <svg class="ch-gauge" viewBox="0 0 340 64" preserveAspectRatio="none" aria-hidden="true">
-      <defs><linearGradient id="${id}f" x1="0" x2="1"><stop offset="0" stop-color="#8E7CF6"/><stop offset=".6" stop-color="#B79BFF"/><stop offset="1" stop-color="#FFB8A0"/></linearGradient>
-      <clipPath id="${id}c"><path d="M16 4 H292 L326 16 Q336 32 326 48 L292 60 H16 Q4 60 4 48 V16 Q4 4 16 4Z"/></clipPath></defs>
-      <path d="M16 4 H292 L326 16 Q336 32 326 48 L292 60 H16 Q4 60 4 48 V16 Q4 4 16 4Z" fill="#FBF9FF" stroke="#E9E3F6" stroke-width="2"/>
-      <g clip-path="url(#${id}c)"><rect class="ch-fill" width="${fillW}" height="64" fill="url(#${id}f)" style="--w:${fillW}px"/>${ticks}</g>
-      ${pct > 0.04 ? `<path d="M20 13 H${Math.max(26, fillW - 8).toFixed(1)}" stroke="#fff" stroke-opacity=".55" stroke-width="4" stroke-linecap="round"/>` : ''}
-      <path d="M292 4 V60" stroke="#E9E3F6" stroke-width="2"/>
+      <defs>
+        <linearGradient id="${id}f" x1="0" x2="1"><stop offset="0" stop-color="#8E7CF6"/><stop offset=".6" stop-color="#B79BFF"/><stop offset="1" stop-color="#FFB8A0"/></linearGradient>
+        <linearGradient id="${id}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F1F0F4"/><stop offset=".55" stop-color="#E4E2E9"/><stop offset="1" stop-color="#D3D0DA"/></linearGradient>
+        <linearGradient id="${id}s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".22" stop-color="#fff" stop-opacity=".12"/><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#2B2640" stop-opacity=".16"/></linearGradient>
+        <clipPath id="${id}c"><rect x="${X0}" y="6" width="${X1 - X0}" height="52" rx="2"/></clipPath>
+      </defs>
+      <!-- 양 끝 봉합부 (톱니 모양 + 압착 줄무늬) -->
+      <path d="M${X0} 6 L8 6 ${zig(4, 1).replace(/^L/, 'L')} L${X0} 58 Z" fill="${leftOn ? '#8E7CF6' : '#D9D7DF'}"/>
+      <path d="M${X1} 6 L332 6 ${zig(336, -1)} L${X1} 58 Z" fill="${rightOn ? '#FFB8A0' : '#D9D7DF'}"/>
+      <g stroke="#fff" stroke-opacity=".35" stroke-width="1">${crimp(8, X0)}${crimp(X1, 332)}</g>
+      <!-- 뜯는 홈 -->
+      <path d="M318 6 L321 12 L324 6 Z" fill="#fff"/>
+      <path d="M321 14 V56" stroke="#fff" stroke-opacity=".6" stroke-width="1" stroke-dasharray="2 2.5"/>
+      <!-- 몸통: 비어 있으면 회색, 채운 만큼 색 -->
+      <rect x="${X0}" y="6" width="${X1 - X0}" height="52" rx="2" fill="url(#${id}g)"/>
+      <g clip-path="url(#${id}c)">
+        <rect class="ch-fill" x="${X0}" y="6" width="${fillW.toFixed(1)}" height="52" fill="url(#${id}f)"/>
+        ${pct > 0 && pct < 1 ? `<path d="M${(X0 + fillW).toFixed(1)} 6 q-3 13 0 26 t0 26" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="1.5"/>` : ''}
+        <g stroke="#fff" stroke-opacity=".45" stroke-width="1">${ticks}</g>
+        <rect x="${X0}" y="6" width="${X1 - X0}" height="52" fill="url(#${id}s)"/>
+        <path d="M${X0 + 6} 13 H${X1 - 8}" stroke="#fff" stroke-opacity=".65" stroke-width="3" stroke-linecap="round"/>
+      </g>
+      <path d="M${X0} 6 V58 M${X1} 6 V58" stroke="#fff" stroke-opacity=".7" stroke-width="1.2"/>
     </svg>
     <img class="ch-paws" src="img/nk-paws.webp" alt="" width="264" height="114">
   </div>`;
